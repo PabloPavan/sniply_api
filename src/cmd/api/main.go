@@ -27,10 +27,8 @@ func main() {
 	snRepo := snippets.NewRepoPG(d.Pool)
 
 	app := &httpapi.App{
-		Health: &httpapi.HealthHandler{DB: d.Pool},
-		Snippets: &httpapi.SnippetsHandler{
-			Repo: snRepo,
-		},
+		Health:   &httpapi.HealthHandler{DB: d.Pool},
+		Snippets: &httpapi.SnippetsHandler{Repo: snRepo},
 	}
 
 	srv := &http.Server{
