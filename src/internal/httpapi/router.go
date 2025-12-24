@@ -10,6 +10,7 @@ import (
 type App struct {
 	Health   *HealthHandler
 	Snippets *SnippetsHandler
+	Users    *UsersHandler
 }
 
 func NewRouter(app *App) http.Handler {
@@ -22,6 +23,7 @@ func NewRouter(app *App) http.Handler {
 	r.Get("/health", app.Health.Get)
 
 	r.Route("/v1", func(r chi.Router) {
+
 		r.Route("/snippets", func(r chi.Router) {
 			r.Get("/", app.Snippets.List)
 			r.Post("/", app.Snippets.Create)
@@ -29,7 +31,13 @@ func NewRouter(app *App) http.Handler {
 			r.Put("/{id}", app.Snippets.Update)
 			r.Delete("/{id}", app.Snippets.Delete)
 		})
-	})
 
+		r.Route("/users", func(r chi.Router) {
+			r.Post("/", app.Users.Create)
+			r.Get("/", app.Users.List)
+			r.Put("/{id}", app.Users.Update)
+			r.Delete("/{id}", app.Users.Delete)
+		})
+	})
 	return r
 }

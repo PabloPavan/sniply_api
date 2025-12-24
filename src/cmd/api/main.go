@@ -10,6 +10,7 @@ import (
 	"github.com/PabloPavan/Sniply/internal/db"
 	"github.com/PabloPavan/Sniply/internal/httpapi"
 	"github.com/PabloPavan/Sniply/internal/snippets"
+	"github.com/PabloPavan/Sniply/internal/users"
 )
 
 func main() {
@@ -24,11 +25,14 @@ func main() {
 	}
 	defer d.Close()
 
-	snRepo := snippets.NewRepoPG(d.Pool)
+	dbBase := db.NewBase(d.Pool, 3*time.Second)
+	snRepo := snippets.NewRepository(dbBase)
+	usrRepo := users.NewRepository(dbBase)
 
 	app := &httpapi.App{
 		Health:   &httpapi.HealthHandler{DB: d.Pool},
 		Snippets: &httpapi.SnippetsHandler{Repo: snRepo},
+		Users:    &httpapi.UsersHandler{Repo: usrRepo},
 	}
 
 	srv := &http.Server{
