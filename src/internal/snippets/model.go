@@ -34,7 +34,7 @@ type CreateSnippetRequest struct {
 
 type SnippetFilter struct {
 	Query    string // full-text or simple substring search
-	Creator  string // creator_id
+	Creator  string
 	Language string
 	Limit    int
 	Offset   int
