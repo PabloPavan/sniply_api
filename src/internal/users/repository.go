@@ -22,11 +22,17 @@ const (
 	sqlUserInsert = `INSERT INTO users (id, email, password_hash)
 		VALUES ($1, $2, $3)`
 
-	sqlUserGetByEmail = `SELECT id, email, password_hash, created_at
+	sqlUserList = `SELECT id, email, password_hash, role, created_at
+		FROM users
+		WHERE email ILIKE $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3`
+
+	sqlUserGetByEmail = `SELECT id, email, password_hash, role, created_at
 		FROM users
 		WHERE email = $1`
 
-	sqlUserGetByID = `SELECT id, email, password_hash, created_at
+	sqlUserGetByID = `SELECT id, email, password_hash, role, created_at
 		FROM users
 		WHERE id = $1`
 
@@ -36,20 +42,14 @@ const (
 
 	sqlUserDelete = `DELETE FROM users 
 		WHERE id = $1`
-	sqlUserList = `SELECT id, email, password_hash, created_at
-		FROM users
-		WHERE email ILIKE $1
-		ORDER BY created_at DESC
-		LIMIT $2 OFFSET $3`
 )
 
 func (r *Repository) Create(ctx context.Context, u *User) error {
 	ctx, cancel := r.base.WithTimeout(ctx)
 	defer cancel()
 
-	// return created_at to populate the struct
-	row := r.base.Q().QueryRow(ctx, sqlUserInsert+" RETURNING created_at", u.ID, u.Email, u.PasswordHash)
-	if err := row.Scan(&u.CreatedAt); err != nil {
+	row := r.base.Q().QueryRow(ctx, sqlUserInsert+" RETURNING created_at, role", u.ID, u.Email, u.PasswordHash)
+	if err := row.Scan(&u.CreatedAt, &u.Role); err != nil {
 		return err
 	}
 	return nil
@@ -61,7 +61,7 @@ func (r *Repository) GetByEmail(ctx context.Context, email string) (User, error)
 
 	var u User
 	err := r.base.Q().QueryRow(ctx, sqlUserGetByEmail, email).Scan(
-		&u.ID, &u.Email, &u.PasswordHash, &u.CreatedAt,
+		&u.ID, &u.Email, &u.PasswordHash, &u.Role, &u.CreatedAt,
 	)
 	if err != nil {
 		return User{}, err
@@ -78,6 +78,7 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*User, error) {
 		&u.ID,
 		&u.Email,
 		&u.PasswordHash,
+		&u.Role,
 		&u.CreatedAt,
 	)
 	if err != nil {
@@ -114,7 +115,7 @@ func (r *Repository) List(ctx context.Context, f UserFilter) ([]*User, error) {
 	var out []*User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.Role, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, &u)
@@ -125,7 +126,7 @@ func (r *Repository) List(ctx context.Context, f UserFilter) ([]*User, error) {
 	return out, nil
 }
 
-func (r *Repository) Update(ctx context.Context, u *User) error {
+func (r *Repository) Update(ctx context.Context, u *UpdateUserRequest) error {
 	set := make([]string, 0, 4)
 	args := make([]any, 0, 5)
 
@@ -140,6 +141,11 @@ func (r *Repository) Update(ctx context.Context, u *User) error {
 	if u.PasswordHash != "" {
 		set = append(set, "password_hash = $"+strconv.Itoa(argPos))
 		args = append(args, u.PasswordHash)
+		argPos++
+	}
+	if u.Role.Valid() {
+		set = append(set, "role = $"+strconv.Itoa(argPos))
+		args = append(args, u.Role)
 		argPos++
 	}
 

@@ -7,20 +7,19 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/PabloPavan/Sniply/internal"
+	"github.com/PabloPavan/Sniply/internal/auth"
 	"github.com/PabloPavan/Sniply/internal/users"
+	"github.com/go-chi/chi/v5"
 )
 
 type UsersRepo interface {
 	Create(ctx context.Context, u *users.User) error
 	GetByID(ctx context.Context, id string) (*users.User, error)
 	List(ctx context.Context, f users.UserFilter) ([]*users.User, error)
-	Update(ctx context.Context, u *users.User) error
+	Update(ctx context.Context, u *users.UpdateUserRequest) error
 	Delete(ctx context.Context, id string) error
 }
-
 type UsersHandler struct {
 	Repo           UsersRepo
 	PasswordHasher func(plain string) (string, error)
@@ -40,7 +39,6 @@ func (h *UsersHandler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "email and password are required", http.StatusBadRequest)
 		return
 	}
-	// Validação mínima. Se quiser, faça validação mais forte (regex).
 	if !strings.Contains(req.Email, "@") {
 		http.Error(w, "invalid email", http.StatusBadRequest)
 		return
@@ -68,7 +66,6 @@ func (h *UsersHandler) Create(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "email already exists", http.StatusConflict)
 			return
 		}
-
 		http.Error(w, "failed to create user", http.StatusInternalServerError)
 		return
 	}
@@ -76,6 +73,7 @@ func (h *UsersHandler) Create(w http.ResponseWriter, r *http.Request) {
 	resp := users.UserResponse{
 		ID:        u.ID,
 		Email:     u.Email,
+		Role:      u.Role,
 		CreatedAt: u.CreatedAt,
 	}
 
@@ -85,6 +83,17 @@ func (h *UsersHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
+	_, ok := auth.UserID(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if !auth.IsAdmin(r.Context()) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 
 	limit := 100
@@ -126,32 +135,14 @@ func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimSpace(chi.URLParam(r, "id"))
-	if id == "" {
-		http.Error(w, "id is required", http.StatusBadRequest)
+func (h *UsersHandler) Me(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserID(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	var req users.UpdateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
-		return
-	}
-
-	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-	req.Password = strings.TrimSpace(req.Password)
-
-	if req.Email == "" && req.Password == "" {
-		http.Error(w, "email or password must be provided", http.StatusBadRequest)
-		return
-	}
-	if req.Email != "" && !strings.Contains(req.Email, "@") {
-		http.Error(w, "invalid email", http.StatusBadRequest)
-		return
-	}
-
-	cur, err := h.Repo.GetByID(r.Context(), id)
+	u, err := h.Repo.GetByID(r.Context(), userID)
 	if err != nil {
 		if users.IsNotFound(err) {
 			http.Error(w, "user not found", http.StatusNotFound)
@@ -161,58 +152,149 @@ func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email != "" {
-		cur.Email = req.Email
-	}
-	if req.Password != "" {
-		hasher := h.PasswordHasher
-		if hasher == nil {
-			hasher = defaultPasswordHasher
-		}
-		hash, err := hasher(req.Password)
-		if err != nil {
-			http.Error(w, "failed to process password", http.StatusInternalServerError)
-			return
-		}
-		cur.PasswordHash = hash
-	}
-
-	if err := h.Repo.Update(r.Context(), cur); err != nil {
-		if users.IsUniqueViolationEmail(err) {
-			http.Error(w, "email already exists", http.StatusConflict)
-			return
-		}
-		if users.IsNotFound(err) {
-			http.Error(w, "user not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "failed to update user", http.StatusInternalServerError)
-		return
-	}
-
 	resp := users.UserResponse{
-		ID:        cur.ID,
-		Email:     cur.Email,
-		CreatedAt: cur.CreatedAt,
+		ID:        u.ID,
+		Email:     u.Email,
+		CreatedAt: u.CreatedAt,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-func (h *UsersHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimSpace(chi.URLParam(r, "id"))
-	if id == "" {
+func (h *UsersHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserID(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	h.updateUserByID(w, r, userID)
+}
+
+func (h *UsersHandler) DeleteMe(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserID(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	h.deleteUserByID(w, r, userID)
+}
+
+func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
+	targetID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if targetID == "" {
 		http.Error(w, "id is required", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.Repo.Delete(r.Context(), id); err != nil {
+	requesterID, ok := auth.UserID(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if !h.isAllowedToMutateUser(r.Context(), requesterID, targetID) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	h.updateUserByID(w, r, targetID)
+}
+
+func (h *UsersHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	targetID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if targetID == "" {
+		http.Error(w, "id is required", http.StatusBadRequest)
+		return
+	}
+
+	requesterID, ok := auth.UserID(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if !h.isAllowedToMutateUser(r.Context(), requesterID, targetID) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	h.deleteUserByID(w, r, targetID)
+}
+
+func (h *UsersHandler) isAllowedToMutateUser(ctx context.Context, requesterID, targetID string) bool {
+	if requesterID == targetID {
+		return true
+	}
+
+	return auth.IsAdmin(ctx)
+}
+
+func (h *UsersHandler) updateUserByID(w http.ResponseWriter, r *http.Request, targetID string) {
+	ctx := r.Context()
+
+	isAdmin := auth.IsAdmin(ctx)
+
+	type updateUserRaw struct {
+		Email    string  `json:"email,omitempty"`
+		Password string  `json:"password,omitempty"`
+		Role     *string `json:"role,omitempty"`
+	}
+
+	var raw updateUserRaw
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	if raw.Role != nil && !isAdmin {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	hasher := h.PasswordHasher
+	if hasher == nil {
+		hasher = defaultPasswordHasher
+	}
+
+	hash, err := hasher(raw.Password)
+	if err != nil {
+		http.Error(w, "failed to process password", http.StatusInternalServerError)
+		return
+	}
+
+	req := users.UpdateUserRequest{
+		ID:           targetID,
+		Email:        raw.Email,
+		PasswordHash: hash,
+	}
+
+	if raw.Role != nil {
+		role, err := users.ParseUserRole(*raw.Role)
+		if err != nil {
+			http.Error(w, "invalid role", http.StatusBadRequest)
+			return
+		}
+		req.Role = role
+	}
+
+	if err := h.Repo.Update(ctx, &req); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *UsersHandler) deleteUserByID(w http.ResponseWriter, r *http.Request, targetID string) {
+	if err := h.Repo.Delete(r.Context(), targetID); err != nil {
 		if users.IsNotFound(err) {
 			http.Error(w, "user not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, "failed to update user", http.StatusInternalServerError)
+		http.Error(w, "failed to delete user", http.StatusInternalServerError)
 		return
 	}
 

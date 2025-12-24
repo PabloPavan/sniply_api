@@ -6,6 +6,7 @@ type User struct {
 	ID           string    `json:"id"`
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"-"`
+	Role         UserRole  `json:"role"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -15,13 +16,16 @@ type CreateUserRequest struct {
 }
 
 type UpdateUserRequest struct {
-	Email    string `json:"email,omitempty"`
-	Password string `json:"password,omitempty"`
+	ID           string   `json:"id"`
+	Email        string   `json:"email,omitempty"`
+	PasswordHash string   `json:"password,omitempty"`
+	Role         UserRole `json:"role,omitempty"` // só admin pode seta
 }
 
 type UserResponse struct {
 	ID        string    `json:"id"`
 	Email     string    `json:"email"`
+	Role      UserRole  `json:"role,omitempty"`
 	CreatedAt time.Time `json:"created_at,omitempty"`
 }
 
