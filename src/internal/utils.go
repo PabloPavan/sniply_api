@@ -1,6 +1,8 @@
 package internal
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"log"
 	"os"
 )
@@ -19,4 +21,10 @@ func MustEnv(key string) string {
 		log.Fatalf("missing env: %s", key)
 	}
 	return v
+}
+
+func RandomHex(nBytes int) string {
+	b := make([]byte, nBytes)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }

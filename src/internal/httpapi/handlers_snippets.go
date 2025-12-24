@@ -2,14 +2,13 @@ package httpapi
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/PabloPavan/Sniply/internal"
 	"github.com/PabloPavan/Sniply/internal/snippets"
 )
 
@@ -45,14 +44,13 @@ func (h *SnippetsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s := &snippets.Snippet{
-		ID:         "snp_" + randomHex(12),
+		ID:         "snp_" + internal.RandomHex(12),
 		Name:       req.Name,
 		Content:    req.Content,
 		Language:   req.Language,
 		Tags:       req.Tags,
 		Visibility: req.Visibility,
 
-		// MVP sem auth: setamos um creator fixo (ou vazio).
 		// Quando entrar auth, isso vem do token.
 		CreatorID: "usr_demo",
 	}
@@ -83,10 +81,4 @@ func (h *SnippetsHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(s)
-}
-
-func randomHex(nBytes int) string {
-	b := make([]byte, nBytes)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
 }
