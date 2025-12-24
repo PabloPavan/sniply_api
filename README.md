@@ -40,36 +40,6 @@ PostgreSQL
 
 Um container separado é utilizado exclusivamente para executar as **migrations**.
 
----
-
-## Estrutura do Projeto
-
-```
-.
-├─ cmd/
-│  └─ api/
-│     └─ main.go
-├─ internal/
-│  ├─ db/
-│  │  └─ db.go
-│  ├─ httpapi/
-│  │  ├─ router.go
-│  │  ├─ handlers_health.go
-│  │  └─ handlers_snippets.go
-│  └─ snippets/
-│     ├─ model.go
-│     └─ repo_pg.go
-├─ migrations/
-│  ├─ 000001_init.up.sql
-│  └─ 000001_init.down.sql
-├─ Dockerfile
-├─ docker-compose.yml
-├─ go.mod
-├─ go.sum
-└─ README.md
-```
-
----
 
 ## Banco de Dados
 
@@ -179,90 +149,179 @@ Somente snippets públicos são retornados no MVP atual.
 GET /v1/snippets
 ```
 
-Suporta filtros via query params (implementação no handler):
-- `q` — termo de busca (full-text / fuzzy)
-- `creator` — `creator_id` para filtrar snippets por criador
-- `limit`, `offset` — paginação
+# Sniply — API de snippets
 
-Exemplo:
-```bash
-curl 'http://localhost:8080/v1/snippets?q=hello&creator=usr_demo&limit=20'
-```
+API simples para armazenar, buscar e gerenciar snippets de texto. Este README foi atualizado para refletir o estado atual da API (rotas, exemplos e segurança).
+
+Tecnologias principais: Go, chi, PostgreSQL, Docker, golang-migrate.
+
+Índice
+- Visão geral
+- Como rodar (Docker + migrations)
+- Endpoints (exemplos curl)
+- Autenticação e segurança
+- Notas adicionais
 
 ---
 
-### Atualizar snippet (Update)
+Visão geral
+-----------
 
-```
-PUT /v1/snippets/{id}
+O serviço expõe uma API REST em `/v1` com os recursos principais:
+- `/v1/snippets` — CRUD de snippets (criar/listar/consultar/atualizar/excluir)
+- `/v1/users` — criar conta pública e endpoints protegidos para autogerenciamento e administração
+- `/v1/auth/login` — gera token de acesso (JWT)
+
+As rotas públicas e protegidas estão descritas abaixo com exemplos.
+
+Como rodar (Docker)
+-------------------
+
+Subir apenas o banco:
+
+```bash
+docker compose up -d db
 ```
 
-Body (mesmo formato do create):
-```json
-{
-  "name": "Exemplo atualizado",
-  "content": "print('hello world')",
-  "language": "python",
-  "tags": ["demo","edit"],
-  "visibility": "public"
-}
+Rodar migrations (use o banco definido em `docker-compose.yml`):
+
+```bash
+docker compose run --rm migrate \
+  -source file:///migrations \
+  -database=postgres://sniply:sniply@db:5432/sniply?sslmode=disable \
+  up
 ```
 
-Resposta: `200 OK` com o recurso atualizado (JSON).
+Subir a API:
+
+```bash
+docker compose up -d api
+```
+
+API (endpoints e exemplos)
+--------------------------
+
+Base URL: `http://localhost:8080` (ajuste conforme `docker-compose.yml`).
+
+Health
+- GET /health
 
 Exemplo:
+```bash
+curl http://localhost:8080/health
+```
+
+Auth
+- POST /v1/auth/login
+
+Request body:
+```json
+{ "email": "you@example.com", "password": "secret" }
+```
+
+Response: JSON com `access_token` (Bearer token), `token_type` e `expires_at`.
+
+Exemplo:
+```bash
+curl -X POST http://localhost:8080/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"secret"}'
+```
+
+Users
+- POST /v1/users — criar usuário (público)
+
+Request body:
+```json
+{ "email": "you@example.com", "password": "secret" }
+```
+
+Exemplo:
+```bash
+curl -X POST http://localhost:8080/v1/users \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"secret"}'
+```
+
+- Protected (requer `Authorization: Bearer <token>`)
+  - GET /v1/users/me — obter perfil do usuário autenticado
+  - PUT /v1/users/me — atualizar email/password do próprio usuário
+  - DELETE /v1/users/me — deletar a própria conta
+
+- Admin-only (requer role `admin`):
+  - GET /v1/users — listar usuários
+  - PUT /v1/users/{id} — atualizar usuário por id
+  - DELETE /v1/users/{id} — deletar usuário por id
+
+Exemplo (usar token obtido via `/v1/auth/login`):
+```bash
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/v1/users/me
+```
+
+Snippets
+- GET /v1/snippets — listar snippets (públicos + filtros)
+- GET /v1/snippets/{id} — obter snippet por id
+- POST /v1/snippets — criar snippet (protegido)
+- PUT /v1/snippets/{id} — atualizar snippet (protegido)
+- DELETE /v1/snippets/{id} — deletar snippet (protegido)
+
+Query params para listagem:
+- `q` — termo de busca (full-text / fuzzy)
+- `creator` — filtrar por `creator_id`
+- `limit`, `offset` — paginação
+
+Criar snippet (exemplo):
+```bash
+curl -X POST http://localhost:8080/v1/snippets \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"Exemplo","content":"print(\"hello\")","language":"python","tags":["demo"],"visibility":"public"}'
+```
+
+Obter snippet público:
+```bash
+curl http://localhost:8080/v1/snippets/snp_abc123
+```
+
+Atualizar snippet:
 ```bash
 curl -X PUT http://localhost:8080/v1/snippets/snp_abc123 \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Novo","content":"x","language":"txt"}'
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"Atualizado","content":"x","language":"txt"}'
 ```
 
----
-
-### Excluir snippet (Delete)
-
-```
-DELETE /v1/snippets/{id}
-```
-
-Resposta: `204 No Content` em caso de sucesso.
-
-Exemplo:
+Deletar snippet:
 ```bash
-curl -X DELETE http://localhost:8080/v1/snippets/snp_abc123
+curl -X DELETE http://localhost:8080/v1/snippets/snp_abc123 \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
----
+Segurança e autenticação
+------------------------
 
-## Autenticação (Planejada)
+- Autenticação: JWT (HS256). O serviço `auth.Service` emite tokens de acesso com `IssueAccessToken(userID, role)` e valida via `ValidateAccessToken`.
+- Formato do header: `Authorization: Bearer <token>` — o middleware verifica e injeta o `user_id` e `role` no contexto da requisição.
+- Permissões: a API usa o campo `role` do token para checar permissões; o helper `auth.IsAdmin(ctx)` retorna true para `role == "admin"`.
+- Use HTTPS em produção e mantenha a chave secreta fora do código (variáveis de ambiente / secret manager).
+- Tempo de vida do token é configurável em `auth.Service.AccessTTL`.
 
-- JWT Bearer Token
-- Snippets privados
-- Endpoints `/auth/login` e `/auth/register`
-- Endpoint `/v1/me/snippets`
+Observações sobre segurança prática
+- Nunca exponha o segredo JWT no repositório.
+- Valide senhas com um algoritmo de hash forte (bcrypt é usado nos handlers).
+- Proteja endpoints administrativos e remova contas demo em produção.
 
----
+Notas sobre comportamento atual
+-----------------------------
+- A rota `POST /v1/users` cria uma conta e a partir daí você pode chamar `/v1/auth/login` para obter o token.
+- As migrations vivem em `migrations/` e devem ser aplicadas antes de subir a API.
+- IDs usados pelo sistema seguem o formato `usr_*` e `snp_*`.
 
-## Convenções
+Contribuindo e próximos passos
+-----------------------------
 
-- Toda mudança de schema passa por migration
-- Migrations não são alteradas após aplicadas
-- IDs são strings (`snp_*`, `usr_*`) para facilitar debug
-
----
-
-## Próximos Passos
-
-- Endpoint de busca `/v1/snippets/search`
-- Autenticação JWT
-- Snippets privados
-- Paginação
-- OpenAPI / Swagger
-- Testes de integração
-- CI/CD
+- Adicionar OpenAPI/Swagger
+- Tornar endpoints de snippets mais ricos em filtros
+- Testes de integração e CI
 
 ---
-
-## Objetivo do MVP
-
-Fornecer uma base **simples, clara e extensível**, pronta para evolução sem retrabalho arquitetural.
