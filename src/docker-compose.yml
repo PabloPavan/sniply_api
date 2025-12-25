@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: sniply_db
     environment:
       POSTGRES_DB: sniply
@@ -17,18 +17,16 @@ services:
       retries: 20
 
   migrate:
-    image: migrate/migrate:v4.17.1
+    image: migrate/migrate:v4.19.1
     container_name: sniply_migrate
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./migrations:/migrations:ro
-    entrypoint: ["/migrate"]
-    command:
-    - "-source=file:///migrations"
-    - "-database=postgres://sniply:sniply@db:5432/sniply?sslmode=disable"
-    - "version"
+    entrypoint: ["/migrate", "-source=file:///migrations", "-database=postgres://sniply:sniply@db:5432/sniply?sslmode=disable"]
+    command: ["up"]
+
 
   api:
     build:
@@ -49,3 +47,4 @@ services:
 
 volumes:
   pgdata:
+ 

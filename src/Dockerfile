@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.21-alpine AS build
+FROM golang:alpine AS build
 WORKDIR /app
 
 RUN apk add --no-cache ca-certificates tzdata
@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/api ./cmd/api
 
-FROM alpine:3.20
+FROM alpine:latest
 WORKDIR /app
 
 RUN apk add --no-cache ca-certificates tzdata
