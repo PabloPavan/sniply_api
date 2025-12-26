@@ -83,7 +83,7 @@ func (r *Repository) GetByIDPublicOnly(ctx context.Context, id string) (*Snippet
 }
 
 func (r *Repository) List(ctx context.Context, f SnippetFilter) ([]*Snippet, error) {
-	where := []string{"visibility = 'public'"}
+	where := []string{"1=1"}
 	args := make([]any, 0, 8)
 	argPos := 1
 
@@ -102,6 +102,17 @@ func (r *Repository) List(ctx context.Context, f SnippetFilter) ([]*Snippet, err
 		qstr := strings.TrimSpace(f.Query)
 		args = append(args, qstr)
 		argPos += 1
+	}
+	if len(f.Tags) > 0 {
+		where = append(where, fmt.Sprintf("tags && $%d", argPos))
+		args = append(args, f.Tags)
+		argPos++
+	}
+
+	if f.Visibility != "" {
+		where = append(where, fmt.Sprintf("visibility = $%d", argPos))
+		args = append(args, string(f.Visibility))
+		argPos++
 	}
 
 	limit := 100

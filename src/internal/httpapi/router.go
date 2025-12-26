@@ -32,14 +32,12 @@ func NewRouter(app *App) http.Handler {
 		})
 
 		r.Route("/snippets", func(r chi.Router) {
-			// Public
-			r.Get("/", app.Snippets.List)
-			r.Get("/{id}", app.Snippets.GetByID)
-
 			// Protected
 			r.Group(func(r chi.Router) {
 				r.Use(auth.Middleware(app.Auth.Auth))
 				r.Post("/", app.Snippets.Create)
+				r.Get("/", app.Snippets.List)
+				r.Get("/{id}", app.Snippets.GetByID)
 				r.Put("/{id}", app.Snippets.Update)
 				r.Delete("/{id}", app.Snippets.Delete)
 			})

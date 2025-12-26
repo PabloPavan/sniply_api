@@ -17,8 +17,7 @@ type Snippet struct {
 	Tags       []string   `json:"tags"`
 	Visibility Visibility `json:"visibility"`
 
-	// MVP sem auth: deixa vazio. Quando entrar auth, preencher.
-	CreatorID string `json:"creator_id,omitempty"`
+	CreatorID string `json:"creator_id"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -33,9 +32,11 @@ type CreateSnippetRequest struct {
 }
 
 type SnippetFilter struct {
-	Query    string // full-text or simple substring search
-	Creator  string
-	Language string
-	Limit    int
-	Offset   int
+	Query      string // full-text or simple substring search
+	Creator    string
+	Language   string
+	Tags       []string
+	Visibility Visibility
+	Limit      int
+	Offset     int
 }

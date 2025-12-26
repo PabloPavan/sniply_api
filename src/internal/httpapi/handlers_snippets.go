@@ -51,7 +51,7 @@ func (h *SnippetsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		req.Language = "txt"
 	}
 	if req.Visibility == "" {
-		req.Visibility = snippets.VisibilityPublic
+		req.Visibility = snippets.VisibilityPrivate
 	}
 
 	s := &snippets.Snippet{
@@ -104,6 +104,33 @@ func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	creator := strings.TrimSpace(r.URL.Query().Get("creator"))
 	language := strings.TrimSpace(r.URL.Query().Get("language"))
+	tag := strings.TrimSpace(r.URL.Query().Get("tag"))
+	var tags []string
+	if tag != "" {
+		tags = []string{tag}
+	}
+
+	visibilityStr := strings.TrimSpace(r.URL.Query().Get("visibility"))
+	visibility := snippets.VisibilityPublic
+	if visibilityStr == string(snippets.VisibilityPrivate) {
+		visibility = snippets.VisibilityPrivate
+		if creator == "" {
+			http.Error(w, "creator is required", http.StatusBadRequest)
+			return
+		}
+
+		requesterID, ok := auth.UserID(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		isAdmin := auth.IsAdmin(r.Context())
+		if !isAdmin && requesterID != creator {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+	}
 
 	limit := 100
 	offset := 0
@@ -119,11 +146,13 @@ func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f := snippets.SnippetFilter{
-		Query:    q,
-		Creator:  creator,
-		Language: language,
-		Limit:    limit,
-		Offset:   offset,
+		Query:      q,
+		Creator:    creator,
+		Language:   language,
+		Tags:       tags,
+		Visibility: visibility,
+		Limit:      limit,
+		Offset:     offset,
 	}
 
 	s, err := h.Repo.List(r.Context(), f)
@@ -167,7 +196,7 @@ func (h *SnippetsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		req.Language = "txt"
 	}
 	if req.Visibility == "" {
-		req.Visibility = snippets.VisibilityPublic
+		req.Visibility = snippets.VisibilityPrivate
 	}
 
 	s := &snippets.Snippet{
