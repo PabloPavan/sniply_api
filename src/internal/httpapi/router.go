@@ -3,9 +3,11 @@ package httpapi
 import (
 	"net/http"
 
+	_ "github.com/PabloPavan/Sniply/docs"
 	"github.com/PabloPavan/Sniply/internal/auth"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 type App struct {
@@ -22,9 +24,13 @@ func NewRouter(app *App) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Logger)
 
-	r.Get("/health", app.Health.Get)
+	r.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"),
+	))
 
 	r.Route("/v1", func(r chi.Router) {
+		// Health endpoint
+		r.Get("/health", app.Health.Get)
 
 		// Auth endpoints
 		r.Route("/auth", func(r chi.Router) {

@@ -26,6 +26,19 @@ type SnippetsHandler struct {
 	Repo SnippetsRepo
 }
 
+// Create Snippet
+// @Summary Create snippet
+// @Tags snippets
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param body body snippets.CreateSnippetRequest true "snippet"
+// @Success 201 {object} snippets.Snippet
+// @Failure 400 {string} string
+// @Failure 401 {string} string
+// @Failure 409 {string} string
+// @Failure 500 {string} string
+// @Router /snippets [post]
 func (h *SnippetsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	creatorID, ok := auth.UserID(r.Context())
 	if !ok {
@@ -79,6 +92,17 @@ func (h *SnippetsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(s)
 }
 
+// GetByID Snippet
+// @Summary Get snippet by id
+// @Tags snippets
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "snippet id"
+// @Success 200 {object} snippets.Snippet
+// @Failure 400 {string} string
+// @Failure 404 {string} string
+// @Failure 500 {string} string
+// @Router /snippets/{id} [get]
 func (h *SnippetsHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(chi.URLParam(r, "id"))
 	if id == "" {
@@ -100,6 +124,24 @@ func (h *SnippetsHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(s)
 }
 
+// List Snippets
+// @Summary List snippets
+// @Tags snippets
+// @Produce json
+// @Security BearerAuth
+// @Param q query string false "search"
+// @Param creator query string false "creator id"
+// @Param language query string false "language"
+// @Param tag query string false "tag"
+// @Param visibility query string false "visibility"
+// @Param limit query int false "limit"
+// @Param offset query int false "offset"
+// @Success 200 {array} snippets.Snippet
+// @Failure 400 {string} string
+// @Failure 401 {string} string
+// @Failure 403 {string} string
+// @Failure 500 {string} string
+// @Router /snippets [get]
 func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	creator := strings.TrimSpace(r.URL.Query().Get("creator"))
@@ -165,6 +207,19 @@ func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(s)
 }
 
+// Update Snippet
+// @Summary Update snippet
+// @Tags snippets
+// @Accept json
+// @Security BearerAuth
+// @Param id path string true "snippet id"
+// @Param body body snippets.CreateSnippetRequest true "snippet"
+// @Success 204
+// @Failure 400 {string} string
+// @Failure 401 {string} string
+// @Failure 404 {string} string
+// @Failure 500 {string} string
+// @Router /snippets/{id} [put]
 func (h *SnippetsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	creatorID, ok := auth.UserID(r.Context())
 	if !ok {
@@ -222,6 +277,17 @@ func (h *SnippetsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(s)
 }
 
+// Delete Snippet
+// @Summary Delete snippet
+// @Tags snippets
+// @Security BearerAuth
+// @Param id path string true "snippet id"
+// @Success 204
+// @Failure 400 {string} string
+// @Failure 401 {string} string
+// @Failure 404 {string} string
+// @Failure 500 {string} string
+// @Router /snippets/{id} [delete]
 func (h *SnippetsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	creatorID, ok := auth.UserID(r.Context())
 	if !ok {

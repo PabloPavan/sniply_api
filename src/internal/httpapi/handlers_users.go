@@ -25,6 +25,23 @@ type UsersHandler struct {
 	PasswordHasher func(plain string) (string, error)
 }
 
+type UserUpdateRequest struct {
+	Email    string  `json:"email,omitempty"`
+	Password string  `json:"password,omitempty"`
+	Role     *string `json:"role,omitempty"`
+}
+
+// Create User
+// @Summary Create user
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param body body users.CreateUserRequest true "user"
+// @Success 201 {object} users.UserResponse
+// @Failure 400 {string} string
+// @Failure 409 {string} string
+// @Failure 500 {string} string
+// @Router /users [post]
 func (h *UsersHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req users.CreateUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -82,6 +99,19 @@ func (h *UsersHandler) Create(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
+// List Users
+// @Summary List users (admin)
+// @Tags users
+// @Produce json
+// @Security BearerAuth
+// @Param q query string false "search"
+// @Param limit query int false "limit"
+// @Param offset query int false "offset"
+// @Success 200 {array} users.UserResponse
+// @Failure 401 {string} string
+// @Failure 403 {string} string
+// @Failure 500 {string} string
+// @Router /users [get]
 func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
 	_, ok := auth.UserID(r.Context())
 	if !ok {
@@ -135,6 +165,16 @@ func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
+// Me User
+// @Summary Get current user
+// @Tags users
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} users.UserResponse
+// @Failure 401 {string} string
+// @Failure 404 {string} string
+// @Failure 500 {string} string
+// @Router /users/me [get]
 func (h *UsersHandler) Me(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserID(r.Context())
 	if !ok {
@@ -162,6 +202,18 @@ func (h *UsersHandler) Me(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
+// UpdateMe User
+// @Summary Update current user
+// @Tags users
+// @Accept json
+// @Security BearerAuth
+// @Param body body UserUpdateRequest true "user"
+// @Success 204
+// @Failure 400 {string} string
+// @Failure 401 {string} string
+// @Failure 403 {string} string
+// @Failure 500 {string} string
+// @Router /users/me [put]
 func (h *UsersHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserID(r.Context())
 	if !ok {
@@ -172,6 +224,15 @@ func (h *UsersHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	h.updateUserByID(w, r, userID)
 }
 
+// DeleteMe User
+// @Summary Delete current user
+// @Tags users
+// @Security BearerAuth
+// @Success 204
+// @Failure 401 {string} string
+// @Failure 404 {string} string
+// @Failure 500 {string} string
+// @Router /users/me [delete]
 func (h *UsersHandler) DeleteMe(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserID(r.Context())
 	if !ok {
@@ -182,6 +243,19 @@ func (h *UsersHandler) DeleteMe(w http.ResponseWriter, r *http.Request) {
 	h.deleteUserByID(w, r, userID)
 }
 
+// Update User
+// @Summary Update user (admin or self)
+// @Tags users
+// @Accept json
+// @Security BearerAuth
+// @Param id path string true "user id"
+// @Param body body UserUpdateRequest true "user"
+// @Success 204
+// @Failure 400 {string} string
+// @Failure 401 {string} string
+// @Failure 403 {string} string
+// @Failure 500 {string} string
+// @Router /users/{id} [put]
 func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 	targetID := strings.TrimSpace(chi.URLParam(r, "id"))
 	if targetID == "" {
@@ -203,6 +277,18 @@ func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 	h.updateUserByID(w, r, targetID)
 }
 
+// Delete User
+// @Summary Delete user (admin or self)
+// @Tags users
+// @Security BearerAuth
+// @Param id path string true "user id"
+// @Success 204
+// @Failure 400 {string} string
+// @Failure 401 {string} string
+// @Failure 403 {string} string
+// @Failure 404 {string} string
+// @Failure 500 {string} string
+// @Router /users/{id} [delete]
 func (h *UsersHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	targetID := strings.TrimSpace(chi.URLParam(r, "id"))
 	if targetID == "" {
@@ -237,13 +323,7 @@ func (h *UsersHandler) updateUserByID(w http.ResponseWriter, r *http.Request, ta
 
 	isAdmin := auth.IsAdmin(ctx)
 
-	type updateUserRaw struct {
-		Email    string  `json:"email,omitempty"`
-		Password string  `json:"password,omitempty"`
-		Role     *string `json:"role,omitempty"`
-	}
-
-	var raw updateUserRaw
+	var raw UserUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return

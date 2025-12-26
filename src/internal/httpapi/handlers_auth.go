@@ -32,6 +32,17 @@ type LoginResponse struct {
 	ExpiresAt   string `json:"expires_at"` // RFC3339
 }
 
+// Login Auth
+// @Summary Login
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body LoginRequest true "credentials"
+// @Success 200 {object} LoginResponse
+// @Failure 400 {string} string
+// @Failure 401 {string} string
+// @Failure 500 {string} string
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if h.Users == nil || h.Auth == nil {
 		http.Error(w, "auth not configured", http.StatusInternalServerError)

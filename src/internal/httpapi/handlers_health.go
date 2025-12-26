@@ -13,6 +13,12 @@ type HealthHandler struct {
 	DB *pgxpool.Pool
 }
 
+// Get Health
+// @Summary Health check
+// @Tags health
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Router /health [get]
 func (h *HealthHandler) Get(w http.ResponseWriter, r *http.Request) {
 	type resp struct {
 		Status string `json:"status"`
