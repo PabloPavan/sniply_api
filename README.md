@@ -9,13 +9,9 @@ Este projeto é desenvolvido em **Go**, utilizando **PostgreSQL**, **Docker** e 
 
 O objetivo do projeto é fornecer um **endpoint simples e eficiente** para:
 
-- Criar snippets de texto
-- Consultar snippets públicos
-- Evoluir futuramente para autenticação e snippets privados
+- Criar/Consultar snippets de texto
 - Realizar buscas fuzzy por nome, metadados e conteúdo
-
-O foco inicial é um **MVP funcional**, acessado via **Insomnia** ou `curl`.
-
+- Gerenciar Usuarios e controloar visibilidade dos snippets
 ---
 
 ## Stack Tecnológica
@@ -35,11 +31,10 @@ O foco inicial é um **MVP funcional**, acessado via **Insomnia** ou `curl`.
 API (Go + chi)
     |
     v
-PostgreSQL
+PostgreSQL < -- Migrate
 ```
 
 Um container separado é utilizado exclusivamente para executar as **migrations**.
-
 
 ## Banco de Dados
 
@@ -47,7 +42,6 @@ Um container separado é utilizado exclusivamente para executar as **migrations*
 
 #### users
 - Representa usuários do sistema
-- No MVP existe um usuário fixo `usr_demo`
 
 #### snippets
 - Conteúdo textual do snippet
@@ -174,6 +168,8 @@ Exemplo de body para o criar
 }
 ```
 
+**Para mais exemplos completos dos endpoints olhe o [guia DEV](./README.dev.md)**
+
 ## Segurança e autenticação
 ------------------------
 
@@ -197,5 +193,3 @@ Exemplo de body para o criar
 - Testes de integração e CI
 
 ---
-
-## Para dev olhar [Guia DEV](./README.dev.md)
