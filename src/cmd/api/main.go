@@ -35,7 +35,7 @@ func main() {
 		Secret:    []byte(jwtSecret),
 		Issuer:    "sniply-api",
 		Audience:  "sniply-client",
-		AccessTTL: 20 * time.Minute,
+		AccessTTL: 20 * time.Hour,
 	}
 
 	app := &httpapi.App{
