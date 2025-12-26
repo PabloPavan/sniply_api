@@ -57,6 +57,8 @@ Um container separado é utilizado exclusivamente para executar as **migrations*
 
 ---
 
+<img width="631" height="488" alt="image" src="https://github.com/user-attachments/assets/7280f7be-b0a3-4e87-8e32-5e8dcf081a5f" />
+
 ## Busca
 
 - **Fuzzy search no nome:** `pg_trgm`
@@ -94,10 +96,7 @@ docker compose up -d db
 ### Rodar migrations
 
 ```bash
-docker compose run --rm migrate \
-  -source file:///migrations \
-  -database=postgres://snippet:snippet@db:5432/snippet?sslmode=disable \
-  up
+docker compose run --rm migrate up
 ```
 
 ### Subir a API
@@ -116,100 +115,7 @@ docker compose up -d api
 GET /health
 ```
 
-### Criar snippet
-
-```
-POST /v1/snippets
-```
-
-Body:
-```json
-{
-  "name": "Exemplo",
-  "content": "print('hello')",
-  "language": "python",
-  "tags": ["demo"],
-  "visibility": "public"
-}
-```
-
----
-
-### Buscar snippet público
-
-```
-GET /v1/snippets/{id}
-```
-
-Somente snippets públicos são retornados no MVP atual.
-
-### Listar snippets (ListAll)
-
-```
-GET /v1/snippets
-```
-
-# Sniply — API de snippets
-
-API simples para armazenar, buscar e gerenciar snippets de texto. Este README foi atualizado para refletir o estado atual da API (rotas, exemplos e segurança).
-
-Tecnologias principais: Go, chi, PostgreSQL, Docker, golang-migrate.
-
-Índice
-- Visão geral
-- Como rodar (Docker + migrations)
-- Endpoints (exemplos curl)
-- Autenticação e segurança
-- Notas adicionais
-
----
-
-Visão geral
------------
-
-O serviço expõe uma API REST em `/v1` com os recursos principais:
-- `/v1/snippets` — CRUD de snippets (criar/listar/consultar/atualizar/excluir)
-- `/v1/users` — criar conta pública e endpoints protegidos para autogerenciamento e administração
-- `/v1/auth/login` — gera token de acesso (JWT)
-
-As rotas públicas e protegidas estão descritas abaixo com exemplos.
-
-Como rodar (Docker)
--------------------
-
-Subir apenas o banco:
-
-```bash
-docker compose up -d db
-```
-
-Rodar migrations (use o banco definido em `docker-compose.yml`):
-
-```bash
-docker compose run --rm migrate \
-  -source file:///migrations \
-  -database=postgres://sniply:sniply@db:5432/sniply?sslmode=disable \
-  up
-```
-
-Subir a API:
-
-```bash
-docker compose up -d api
-```
-
-API (endpoints e exemplos)
---------------------------
-
-Base URL: `http://localhost:8080` (ajuste conforme `docker-compose.yml`).
-
-Health
-- GET /health
-
-Exemplo:
-```bash
-curl http://localhost:8080/health
-```
+### Logar
 
 Auth
 - POST /v1/auth/login
@@ -221,26 +127,13 @@ Request body:
 
 Response: JSON com `access_token` (Bearer token), `token_type` e `expires_at`.
 
-Exemplo:
-```bash
-curl -X POST http://localhost:8080/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"you@example.com","password":"secret"}'
-```
+### Users
 
-Users
 - POST /v1/users — criar usuário (público)
 
 Request body:
 ```json
 { "email": "you@example.com", "password": "secret" }
-```
-
-Exemplo:
-```bash
-curl -X POST http://localhost:8080/v1/users \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"you@example.com","password":"secret"}'
 ```
 
 - Protected (requer `Authorization: Bearer <token>`)
@@ -252,52 +145,36 @@ curl -X POST http://localhost:8080/v1/users \
   - GET /v1/users — listar usuários
   - PUT /v1/users/{id} — atualizar usuário por id
   - DELETE /v1/users/{id} — deletar usuário por id
+ 
+### Snippets
 
-Exemplo (usar token obtido via `/v1/auth/login`):
-```bash
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/v1/users/me
-```
-
-Snippets
-- GET /v1/snippets — listar snippets (públicos + filtros)
-- GET /v1/snippets/{id} — obter snippet por id
+- GET /v1/snippets — listar snippets (protegido)
+- GET /v1/snippets/{id} — obter snippet por id (protegido)
 - POST /v1/snippets — criar snippet (protegido)
 - PUT /v1/snippets/{id} — atualizar snippet (protegido)
 - DELETE /v1/snippets/{id} — deletar snippet (protegido)
 
 Query params para listagem:
 - `q` — termo de busca (full-text / fuzzy)
-- `creator` — filtrar por `creator_id`
+- `creator` — filtrar por `creator_id` 
+- `language` — filtrar por `language`
+- `tags` — filtrar por `tags`
+- `visibility` — filtrar por `visibility` (creator or user adm obrigatorio para privado)
 - `limit`, `offset` — paginação
 
-Criar snippet (exemplo):
-```bash
-curl -X POST http://localhost:8080/v1/snippets \
-  -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"name":"Exemplo","content":"print(\"hello\")","language":"python","tags":["demo"],"visibility":"public"}'
+Exemplo de body para o criar
+
+```json
+{
+  "name": "Exemplo",
+  "content": "print('hello')",
+  "language": "python",
+  "tags": ["demo"],
+  "visibility": "public"
+}
 ```
 
-Obter snippet público:
-```bash
-curl http://localhost:8080/v1/snippets/snp_abc123
-```
-
-Atualizar snippet:
-```bash
-curl -X PUT http://localhost:8080/v1/snippets/snp_abc123 \
-  -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{"name":"Atualizado","content":"x","language":"txt"}'
-```
-
-Deletar snippet:
-```bash
-curl -X DELETE http://localhost:8080/v1/snippets/snp_abc123 \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-Segurança e autenticação
+## Segurança e autenticação
 ------------------------
 
 - Autenticação: JWT (HS256). O serviço `auth.Service` emite tokens de acesso com `IssueAccessToken(userID, role)` e valida via `ValidateAccessToken`.
@@ -306,18 +183,13 @@ Segurança e autenticação
 - Use HTTPS em produção e mantenha a chave secreta fora do código (variáveis de ambiente / secret manager).
 - Tempo de vida do token é configurável em `auth.Service.AccessTTL`.
 
-Observações sobre segurança prática
-- Nunca exponha o segredo JWT no repositório.
-- Valide senhas com um algoritmo de hash forte (bcrypt é usado nos handlers).
-- Proteja endpoints administrativos e remova contas demo em produção.
-
-Notas sobre comportamento atual
+## Notas sobre comportamento atual
 -----------------------------
 - A rota `POST /v1/users` cria uma conta e a partir daí você pode chamar `/v1/auth/login` para obter o token.
 - As migrations vivem em `migrations/` e devem ser aplicadas antes de subir a API.
 - IDs usados pelo sistema seguem o formato `usr_*` e `snp_*`.
 
-Contribuindo e próximos passos
+## Contribuindo e próximos passos
 -----------------------------
 
 - Adicionar OpenAPI/Swagger
@@ -325,3 +197,5 @@ Contribuindo e próximos passos
 - Testes de integração e CI
 
 ---
+
+## Para dev olhar [Guia DEV](./README.dev.md)
