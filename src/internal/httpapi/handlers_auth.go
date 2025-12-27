@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/PabloPavan/Sniply/internal/auth"
+	"github.com/PabloPavan/Sniply/internal/telemetry"
 	"github.com/PabloPavan/Sniply/internal/users"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -67,18 +69,31 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := h.Users.GetByEmail(r.Context(), req.Email)
+	ctx := r.Context()
+
+	u, err := h.Users.GetByEmail(ctx, req.Email)
 	if err != nil {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(req.Password)); err != nil {
+	_, span := telemetry.StartSpan(ctx, "auth.verify_password",
+		attribute.String("user.id", u.ID),
+		attribute.String("user.email", u.Email),
+	)
+	err = bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(req.Password))
+	span.End()
+	if err != nil {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
+	_, span = telemetry.StartSpan(ctx, "auth.issue_token",
+		attribute.String("user.id", u.ID),
+		attribute.String("user.role", string(u.Role)),
+	)
 	tok, exp, err := h.Auth.IssueAccessToken(u.ID, string(u.Role))
+	span.End()
 	if err != nil {
 		http.Error(w, "failed to issue token", http.StatusInternalServerError)
 		return
@@ -89,6 +104,12 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		TokenType:   "Bearer",
 		ExpiresAt:   exp.UTC().Format(time.RFC3339),
 	}
+
+	telemetry.LogInfo(r.Context(), "user login",
+		telemetry.LogString("event", "user.login"),
+		telemetry.LogString("user.id", u.ID),
+		telemetry.LogString("user.email", u.Email),
+	)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)

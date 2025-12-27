@@ -9,8 +9,10 @@ import (
 
 	"github.com/PabloPavan/Sniply/internal"
 	"github.com/PabloPavan/Sniply/internal/auth"
+	"github.com/PabloPavan/Sniply/internal/telemetry"
 	"github.com/PabloPavan/Sniply/internal/users"
 	"github.com/go-chi/chi/v5"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type UsersRepo interface {
@@ -61,12 +63,18 @@ func (h *UsersHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
+
 	hasher := h.PasswordHasher
 	if hasher == nil {
 		hasher = internal.DefaultPasswordHasher
 	}
 
+	_, span := telemetry.StartSpan(ctx, "users.hash_password",
+		attribute.String("user.email", req.Email),
+	)
 	hash, err := hasher(req.Password)
+	span.End()
 	if err != nil {
 		http.Error(w, "failed to process password", http.StatusInternalServerError)
 		return
@@ -78,7 +86,13 @@ func (h *UsersHandler) Create(w http.ResponseWriter, r *http.Request) {
 		PasswordHash: hash,
 	}
 
-	if err := h.Repo.Create(r.Context(), u); err != nil {
+	createCtx, span := telemetry.StartSpan(ctx, "users.create",
+		attribute.String("user.id", u.ID),
+		attribute.String("user.email", u.Email),
+	)
+	err = h.Repo.Create(createCtx, u)
+	span.End()
+	if err != nil {
 		if users.IsUniqueViolationEmail(err) {
 			http.Error(w, "email already exists", http.StatusConflict)
 			return
@@ -93,6 +107,12 @@ func (h *UsersHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Role:      u.Role,
 		CreatedAt: u.CreatedAt,
 	}
+
+	telemetry.LogInfo(r.Context(), "user created",
+		telemetry.LogString("event", "user.created"),
+		telemetry.LogString("user.id", u.ID),
+		telemetry.LogString("user.email", u.Email),
+	)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)

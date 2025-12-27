@@ -12,7 +12,9 @@ import (
 	"github.com/PabloPavan/Sniply/internal"
 	"github.com/PabloPavan/Sniply/internal/auth"
 	"github.com/PabloPavan/Sniply/internal/snippets"
+	"github.com/PabloPavan/Sniply/internal/telemetry"
 	"github.com/PabloPavan/Sniply/internal/users"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type SnippetsRepo interface {
@@ -69,6 +71,8 @@ func (h *SnippetsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		req.Visibility = snippets.VisibilityPrivate
 	}
 
+	ctx := r.Context()
+
 	s := &snippets.Snippet{
 		ID:         "snp_" + internal.RandomHex(12),
 		Name:       req.Name,
@@ -79,7 +83,15 @@ func (h *SnippetsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		CreatorID:  creatorID,
 	}
 
-	if err := h.Repo.Create(r.Context(), s); err != nil {
+	createCtx, span := telemetry.StartSpan(ctx, "snippets.create",
+		attribute.String("snippet.id", s.ID),
+		attribute.String("snippet.language", s.Language),
+		attribute.Int("snippet.size_bytes", len(s.Content)),
+		attribute.String("user.id", creatorID),
+	)
+	err := h.Repo.Create(createCtx, s)
+	span.End()
+	if err != nil {
 		if snippets.IsUniqueViolationID(err) {
 			http.Error(w, "snippet already exists", http.StatusConflict)
 			return
@@ -88,6 +100,14 @@ func (h *SnippetsHandler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to create snippet", http.StatusInternalServerError)
 		return
 	}
+
+	telemetry.LogInfo(r.Context(), "snippet created",
+		telemetry.LogString("event", "snippet.created"),
+		telemetry.LogString("snippet.id", s.ID),
+		telemetry.LogString("snippet.language", s.Language),
+		telemetry.LogInt("snippet.size_bytes", len(s.Content)),
+		telemetry.LogString("user.id", creatorID),
+	)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
