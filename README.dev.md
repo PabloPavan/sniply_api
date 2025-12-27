@@ -116,6 +116,72 @@ cd src
 go run ./cmd/api
 ```
 
+Observability (Grafana, Prometheus, Loki, Tempo, OTEL)
+This stack is split into two docker-compose files and connected by a shared Docker network.
+Create the network once:
+
+```bash
+docker network create sniply-observability
+```
+
+Start the observability stack:
+
+```bash
+cd src/observability
+docker compose up -d
+```
+
+Start the app stack (API + DB + migrate):
+
+```bash
+cd src
+docker compose up -d
+```
+
+High-level flow
+```
+API (OTLP) --> OTel Collector --> Tempo (traces)
+                           \\-> Loki (logs)
+                           \\-> Prometheus (metrics scrape)
+```
+
+Docker network layout
+```
+docker-compose.yml (app)          docker-compose.yml (observability)
+  api, db, migrate                grafana, prometheus, loki, tempo, otel-collector
+  \\___________________________________________/
+                  sniply-observability network
+```
+
+What each file does (observability-related)
+- `src/cmd/api/main.go` initializes OTEL trace/metrics/logs, and DB telemetry. All signals use OTLP.
+- `src/internal/httpapi/router.go` wires HTTP middlewares for traces, logs, and metrics.
+- `src/internal/telemetry/trace.go` sets up OTLP trace exporter and tracer provider.
+- `src/internal/telemetry/metrics.go` sets up OTLP metrics exporter and meter provider.
+- `src/internal/telemetry/httpmetrics.go` defines HTTP metrics instruments (OTEL only).
+- `src/internal/telemetry/logs.go` sets up OTLP log exporter and logger provider.
+- `src/internal/telemetry/httplogs.go` emits structured HTTP logs with trace correlation.
+- `src/internal/telemetry/otlp.go` centralizes OTLP endpoint resolution via envs.
+- `src/internal/db/telemetry.go` adds DB spans + DB metrics (latency/errors).
+- `src/internal/db/base.go` wraps the queryer to emit DB telemetry on each call.
+- `src/observability/otel-collector.yml` receives OTLP and exports to Tempo (traces), Loki (logs), and a Prometheus scrape endpoint (metrics).
+- `src/observability/prometheus.yml` scrapes only the collector metrics endpoint.
+- `src/observability/tempo.yaml` configures Tempo storage and OTLP receiver.
+- `src/observability/grafana/provisioning/datasources/datasources.yml` declares Prometheus, Loki, and Tempo datasources.
+- `src/observability/grafana/dashboards/sniply-api.json` defines the HTTP and DB dashboards.
+- `src/observability/docker-compose.yml` runs the observability stack and attaches the collector to the shared network.
+- `src/docker-compose.yml` runs the app stack and configures OTEL endpoint + network.
+
+Signal mapping
+```
+Traces:  API -> OTLP -> OTel Collector -> Tempo -> Grafana
+Logs:    API -> OTLP -> OTel Collector -> Loki  -> Grafana
+Metrics: API -> OTLP -> OTel Collector -> Prometheus -> Grafana
+```
+
+Key environment variable
+- `OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317` (set in `src/docker-compose.yml`)
+
 Notes
 - The API listens on the address configured in `cmd/api` (check the file if you need to change port).
 - Use `Authorization: Bearer <token>` for protected endpoints. Get a token via `POST /v1/auth/login`.

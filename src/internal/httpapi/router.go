@@ -5,6 +5,7 @@ import (
 
 	_ "github.com/PabloPavan/Sniply/docs"
 	"github.com/PabloPavan/Sniply/internal/auth"
+	"github.com/PabloPavan/Sniply/internal/telemetry"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
@@ -23,6 +24,9 @@ func NewRouter(app *App) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Logger)
+	r.Use(telemetry.ChiTraceMiddleware("sniply-api"))
+	r.Use(telemetry.ChiLogMiddleware("sniply-api"))
+	r.Use(telemetry.ChiMetricsMiddleware)
 
 	r.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),

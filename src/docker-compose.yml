@@ -37,6 +37,7 @@ services:
       APP_PORT: "8080"
       DATABASE_URL: "postgres://sniply:sniply@db:5432/sniply?sslmode=disable"
       JWT_SECRET: "change_me_in_prod_please_use_a_long_random_secret"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
     ports:
       - "8080:8080"
     depends_on:
@@ -44,6 +45,9 @@ services:
         condition: service_healthy
       migrate:
         condition: service_started
+    networks:
+      - default
+      - sniply-observability
 
   api-debug:
     build:
@@ -56,6 +60,7 @@ services:
       APP_PORT: "8080"
       DATABASE_URL: "postgres://sniply:sniply@db:5432/sniply?sslmode=disable"
       JWT_SECRET: "change_me_in_prod_please_use_a_long_random_secret"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
     ports:
       - "8080:8080"
       - "40000:40000"
@@ -64,7 +69,14 @@ services:
         condition: service_healthy
       migrate:
         condition: service_started
+    networks:
+      - default
+      - sniply-observability
 
 volumes:
   pgdata:
+
+networks:
+  sniply-observability:
+    external: true
  

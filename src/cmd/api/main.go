@@ -11,6 +11,7 @@ import (
 	"github.com/PabloPavan/Sniply/internal/db"
 	"github.com/PabloPavan/Sniply/internal/httpapi"
 	"github.com/PabloPavan/Sniply/internal/snippets"
+	"github.com/PabloPavan/Sniply/internal/telemetry"
 	"github.com/PabloPavan/Sniply/internal/users"
 )
 
@@ -20,6 +21,14 @@ func main() {
 	jwtSecret := internal.MustEnv("JWT_SECRET")
 
 	ctx := context.Background()
+
+	shutdown := telemetry.InitTracer("sniply-api")
+	defer shutdown(context.Background())
+	shutdownMetrics := telemetry.InitMetrics("sniply-api")
+	defer shutdownMetrics(context.Background())
+	shutdownLogger := telemetry.InitLogger("sniply-api")
+	defer shutdownLogger(context.Background())
+	db.InitTelemetry("sniply-api")
 
 	d, err := db.New(ctx, databaseURL)
 	if err != nil {

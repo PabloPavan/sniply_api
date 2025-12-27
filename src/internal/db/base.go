@@ -31,7 +31,7 @@ func NewBase(pool *pgxpool.Pool, timeout time.Duration) *Base {
 }
 
 func (b *Base) Q() Queryer {
-	return b.pool
+	return instrumentedQueryer{q: b.pool}
 }
 
 func (b *Base) WithTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
