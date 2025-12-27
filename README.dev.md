@@ -85,11 +85,13 @@ flowchart TD
   A --> D[(PostgreSQL)]
   T --> G[Grafana]
   A --> C[OTel Collector]
+  DL[(Docker logs)] --> AL[Alloy]
   C --> P[Prometheus]
   C --> L[Loki]
   C --> M[Tempo]
   T --> M
   T --> P
+  AL --> L
   G --> P
   G --> L
   G --> M
@@ -436,7 +438,7 @@ http://localhost:8080/swagger/index.html
 Telemetry 
 ---------------------------------
 
-Observability (Grafana, Prometheus, Loki, Tempo, OTEL)
+Observability (Grafana, Prometheus, Loki, Tempo, OTEL, Alloy)
 This stack runs in the same compose setup as the API and is connected through the `sniply-observability` network.
 
 **High-level flow**
@@ -445,6 +447,7 @@ API (OTLP) --> OTel Collector --> Tempo (traces)
                            \-> Loki (logs)
                            \-> Prometheus (metrics scrape)
 Traefik (Prometheus metrics) --> Prometheus (metrics scrape)
+Docker logs (all containers) --> Alloy --> Loki
 ```
 
 ### Observability Flow (Mermaid)
@@ -454,6 +457,7 @@ sequenceDiagram
   participant TRA as Traefik
   participant API as API (Go)
   participant COL as OTel Collector
+  participant ALY as Alloy
   participant TMP as Tempo
   participant LOK as Loki
   participant PRO as Prometheus
@@ -463,6 +467,7 @@ sequenceDiagram
   COL->>TMP: traces
   COL->>LOK: logs
   COL->>PRO: metrics endpoint (scrape)
+  ALY->>LOK: docker logs (stdout/stderr)
   PRO->>TRA: scrape /metrics
   TRA->>TMP: OTLP traces
   PRO->>GRA: metrics datasource
@@ -482,6 +487,7 @@ sequenceDiagram
 - `src/internal/db/telemetry.go` adds DB spans + DB metrics (latency/errors).
 - `src/internal/db/base.go` wraps the queryer to emit DB telemetry on each call.
 - `src/observability/otel-collector.yml` receives OTLP and exports to Tempo (traces), Loki (logs), and a Prometheus scrape endpoint (metrics).
+- `src/observability/alloy-config.alloy` scrapes Docker logs for all containers and ships them to Loki (excluding API logs to avoid duplication).
 - `src/observability/prometheus.yml` scrapes the collector metrics endpoint and Traefik metrics.
 - `src/observability/tempo.yaml` configures Tempo storage and OTLP receiver.
 - `src/observability/grafana/provisioning/datasources/datasources.yml` declares Prometheus, Loki, and Tempo datasources.

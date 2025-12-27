@@ -17,6 +17,7 @@ services:
 
       - --log.level=INFO
       - --accesslog=true
+      - --accesslog.format=json
       - --metrics.prometheus=true
       - --metrics.prometheus.addentrypointslabels=true
       - --metrics.prometheus.addserviceslabels=true

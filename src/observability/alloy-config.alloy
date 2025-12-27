@@ -1,0 +1,60 @@
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+loki.process "filter_levels" {
+  forward_to = [loki.write.default.receiver]
+
+  stage.match {
+    selector = "{compose_service=\"traefik\"}"
+
+    stage.drop {
+      expression = "\"status\":(1|2|3)[0-9]{2}"
+    }
+
+    stage.drop {
+      expression = "\"level\":\"info\""
+    }
+  }
+
+  stage.drop {
+    expression = "(?i)level=(info|debug|trace)"
+  }
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "api|api-debug"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "compose_project"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.docker.output
+  forward_to = [loki.process.filter_levels.receiver]
+}

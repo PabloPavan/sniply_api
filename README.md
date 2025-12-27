@@ -4,6 +4,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](#)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18%2B-336791?logo=postgresql&logoColor=white)](#)
 [![Observability](https://img.shields.io/badge/Observability-Grafana%20%7C%20Prometheus%20%7C%20Loki%20%7C%20Tempo-orange)](#)
+[![Logs](https://img.shields.io/badge/Logs-Alloy-6E46FF?logo=grafana&logoColor=white)](#)
 [![License](https://img.shields.io/badge/License-MIT-green)](#)
 
 ## Overview
@@ -44,7 +45,9 @@ At runtime, all traffic flows through Traefik (TLS + routing), the API talks to 
 | Containerization | Docker, Docker Compose                  |
 | API Docs         | Swagger / OpenAPI                       |
 | Proxy            | Traefik                                 |
-| Observability    | OpenTelemetry + Grafana (Prometheus, Loki, Tempo) |
+| Observability    | OpenTelemetry + Grafana (Prometheus, Loki, Tempo, Alloy) |
+
+For more details and flow diagrams, see [here](./README.dev.md)
 
 ---
 
