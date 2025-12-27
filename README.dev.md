@@ -1,45 +1,267 @@
-Development README for Sniply
+# Sniply — Guia de Onboarding (Docker & Deploy)
 
-This document explains how to run and develop Sniply locally.
+Este documento explica **como rodar, desenvolver, migrar e fazer deploy** do Sniply usando Docker Compose.
 
-Prerequisites
-- Docker & Docker Compose
-- Go 1.20+ (to build/run the API locally)
-- Make (optional)
+Se você está chegando agora no projeto, **leia na ordem**.  
+Este README foi escrito para evitar erros comuns e perda de contexto.
 
-Repository layout
-- `cmd/api` — entrypoint for the HTTP API
-- `internal` — app internals (db, httpapi, auth, users, snippets)
-- `migrations` — SQL migrations (golang-migrate)
+---
 
-Start the stack with Docker
-1. Start only the DB:
+## TL;DR (para quem já é experiente)
 
-```bash
-cd src
-docker compose up -d db
+- **Nunca rode `docker compose up` “no seco”** → use os aliases (`DEV` / `PROD`)
+- **Migrações não rodam automaticamente** → precisam ser executadas explicitamente
+- **Produção só expõe 80/443** → todo o resto é interno
+- **Segredos nunca ficam no Git**
+- **Traefik é o único ponto de entrada externo**
+
+---
+
+## Visão Geral da Arquitetura
+
+O Sniply roda como **um único stack Docker**, composto por:
+
+- **Traefik** – Reverse proxy e TLS (HTTPS)
+- **API (Go)** – Serviço principal
+- **PostgreSQL** – Banco local em container
+- **Observabilidade** – Grafana, Prometheus, Loki, Tempo, OpenTelemetry
+
+Todos os serviços, exceto o Traefik, rodam em redes internas.
+
+```
+Internet
+   │
+   ▼
+Traefik (80/443)
+   │
+   ├── API
+   │     └── Postgres
+   │
+   └── Grafana
+         ├── Prometheus
+         ├── Loki
+         └── Tempo
+``` 
+
+---
+
+## Estrutura do Repositório
+
+```
+.
+├── compose.base.yml
+├── compose.dev.yml
+├── compose.prod.yml
+├── Dockerfile
+├── migrations/
+├── grafana/
+├── prometheus.yml
+├── loki-config.yaml
+├── tempo.yaml
+├── otel-collector.yml
 ```
 
-2. Run migrations (apply):
+Pré-requisitos
+---------------------------------------
 
-```bash
-docker compose run --rm migrate \
-  -source file:///migrations \
-  -database=postgres://sniply:sniply@db:5432/sniply?sslmode=disable \
-  up
+**Desenvolvimento (local)**
+
+Você precisa ter:
+
+- Docker >= 24
+- Docker Compose v2 (docker compose)
+- Portas livres:
+  - 8080 (API)
+  - 5432 (Postgres)
+  - 3001 (Grafana)
+  - 9090, 3100, 3200, 4317 (telemetria)
+
+**Produção**
+
+- Servidor Linux com Docker + Docker Compose
+- Portas 80 e 443 abertas
+- DNS configurado:
+  - api.DOMAIN
+  - grafana.DOMAIN
+---
+
+## Convenção de Comandos
+
+**⚠️ Regra importante
+Nunca rode apenas docker compose up.
+Sempre use compose.base.yml + um override.**
+
+### Desenvolvimento
+```
+DEV="docker compose -f compose.base.yml -f compose.dev.yml"
 ```
 
-3. Start the API container:
-
-```bash
-docker compose up -d api
+### Produção
+```
+PROD="docker compose -f compose.base.yml -f compose.prod.yml"
 ```
 
-4. Start the API debug:
+---
+
+## Desenvolvimento
+
+### Subir ambiente
+```
+$DEV up -d --build
+```
+Isso sobe:
+- API
+- Postgres
+- Observabilidade
+- Traefik (mesmo em dev)
+
+### Rodar migrações
+```
+$DEV --profile migrate up --abort-on-container-exit migrate
+```
+
+**⚠️ Importante
+A API não roda migrações sozinha.
+Sempre execute este comando após subir o ambiente pela primeira vez.**
+
+### Logs
+```
+$DEV logs -f api
+```
+
+### Status
+```
+$DEV ps
+```
+
+### Desenvolvimento — Ciclo diário
+
+**Rebuild + restart**
+```
+$DEV up -d --build 
+```
+
+**Reaplicar migrações (se mudou algo)**
+```
+$DEV --profile migrate up --abort-on-container-exit migrate
+```
+
+**Debug com Delve**
+```
+$DEV --profile debug up -d --build api-debug
+```
+
+**Logs do debug:**
+```
+$DEV logs -f api-debug
+```
+
+**Parar debug:**
+```
+$DEV stop api-debug
+```
+
+---
+
+###  Reset do ambiente (DEV)
+
+**Parar tudo**
+```
+$DEV down
+```
+
+**Reset completo (apaga banco e volumes)**
+```
+$DEV down -v
+```
+
+⚠️ Nunca use -v em produção
+
+## Produção
+
+**Criar arquivo de ambiente (fora do Git)**
+
+No servidor:
+
+```
+sudo mkdir -p /etc/sniply
+sudo nano /etc/sniply/sniply.env
+sudo chmod 600 /etc/sniply/sniply.env
+```
+
+Exemplo:
+
+```
+DOMAIN=example.com
+ACME_EMAIL=you@example.com
+
+POSTGRES_PASSWORD=super-secure-password
+JWT_SECRET=very-long-random-secret
+
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=strong-password
+
+# htpasswd -nb user 'password'
+GRAFANA_BASIC_AUTH=user:$apr1$HASH
+```
+
+**Carregar variáveis no shell**
+```
+set -a; source /etc/sniply/sniply.env; set +a
+```
+
+### Subir stack
+```
+$PROD up -d
+```
+
+### Rodar migrações
+```
+$PROD --profile migrate up --abort-on-container-exit migrate
+```
+
+### Produção — Deploy / Atualização
+```
+git pull
+
+set -a; source /etc/sniply/sniply.env; set +a
+$PROD up -d --build
+$PROD --profile migrate up --abort-on-container-exit migrate
+$PROD up -d --build api
+```
+
+### Operação (Produção)
+
+**Status**
+```
+$PROD ps
+```
+
+**Logs**
+```
+$PROD logs -f traefik
+$PROD logs -f api
+$PROD logs -f db
+```
+
+**Reiniciar API**
+```
+$PROD restart api
+```
+
+**Acessar Postgres**
+```
+$PROD exec db psql -U sniply -d sniply
+```
+
+---
+
+Start the API debug
+----------------------------------------------
 ```bash
 docker compose --profile debug up --build api-debug
 ```
-5. setup.json for vscode:
+**setup.json for vscode:**
 ```json
 {
   "version": "0.2.0",
@@ -65,118 +287,41 @@ docker compose --profile debug up --build api-debug
 ```
 
 OpenAPI (automatic with swaggo)
-1. Install swag CLI:
+----------------------------------------------------------
+
+**1. Install swag CLI:**
 
 ```bash
 go install github.com/swaggo/swag/cmd/swag@latest
 ```
 
-2. Generate docs (writes to `src/docs`):
+**2. Generate docs (writes to `src/docs`):**
 
 ```bash
 cd src
 go generate ./...
 ```
 
-3. Start the API and open the Swagger UI:
-
+**3. Start the API and open the Swagger UI:**
 ```
 http://localhost:8080/swagger/index.html
 ```
-
-Run the API locally (without Docker)
-1. Ensure PostgreSQL is running and reachable. Use the same DB from Docker or a local Postgres instance.
-2. Export environment variables (example):
-
-```bash
-export DATABASE_URL=postgres://sniply:sniply@localhost:5432/sniply?sslmode=disable
-export AUTH_SECRET=$(openssl rand -hex 32)
-export AUTH_ISSUER=sniply
-export AUTH_AUDIENCE=sniply
-export AUTH_ACCESS_TTL=1h
-```
-
-3. Run migrations (locally with golang-migrate or reuse container):
-
-```bash
-# with the migrate container (recommended):
-cd src
-docker compose run --rm migrate \
-  -source file:///migrations \
-  -database="$DATABASE_URL" up
-
-# or install golang-migrate locally and run:
-# migrate -path ./migrations -database "$DATABASE_URL" up
-```
-
-Rollback a migration
-To undo the last applied migration:
-
-```bash
-cd src
-docker compose run --rm migrate \
-  -source file:///migrations \
-  -database="$DATABASE_URL" down 1
-```
-
-To rollback a specific version use `goto` or run `down` stepwise.
-
-4. Run the API:
-
-```bash
-cd src
-go run ./cmd/api
-```
-
-Database seeding
-- The project inserts a demo user `usr_demo` in `000001_init.up.sql`.
-- For development you can update or insert additional data via psql or a small SQL file.
-
-Troubleshooting
-- If migrations are not detected, verify filenames end with `.up.sql` / `.down.sql` (e.g., `000002_users_role.up.sql`).
-- If a migration partially applied (client timeout), inspect DB (`schema_migrations`) and re-run `up`.
 
 Telemetry 
 ---------------------------------
 
 Observability (Grafana, Prometheus, Loki, Tempo, OTEL)
 This stack is split into two docker-compose files and connected by a shared Docker network.
-Create the network once:
 
-```bash
-docker network create sniply-observability
-```
-
-Start the observability stack:
-
-```bash
-cd src/observability
-docker compose up -d
-```
-
-Start the app stack (API + DB + migrate):
-
-```bash
-cd src
-docker compose up -d
-```
-
-High-level flow
+**High-level flow**
 ```
 API (OTLP) --> OTel Collector --> Tempo (traces)
                            \\-> Loki (logs)
                            \\-> Prometheus (metrics scrape)
 ```
 
-Docker network layout
-```
-docker-compose.yml (app)          docker-compose.yml (observability)
-  api, db, migrate                grafana, prometheus, loki, tempo, otel-collector
-  \\___________________________________________/
-                  sniply-observability network
-```
 
-What each file does (observability-related)
+**What each file does (observability-related)**
 - `src/cmd/api/main.go` initializes OTEL trace/metrics/logs, and DB telemetry. All signals use OTLP.
 - `src/internal/httpapi/router.go` wires HTTP middlewares for traces, logs, and metrics.
 - `src/internal/telemetry/trace.go` sets up OTLP trace exporter and tracer provider.
@@ -195,14 +340,14 @@ What each file does (observability-related)
 - `src/observability/docker-compose.yml` runs the observability stack and attaches the collector to the shared network.
 - `src/docker-compose.yml` runs the app stack and configures OTEL endpoint + network.
 
-Signal mapping
+**Signal mapping**
 ```
 Traces:  API -> OTLP -> OTel Collector -> Tempo -> Grafana
 Logs:    API -> OTLP -> OTel Collector -> Loki  -> Grafana
 Metrics: API -> OTLP -> OTel Collector -> Prometheus -> Grafana
 DB:      API -> OTLP -> Otel Collector -> Prometheus -> Grafana
 ```
-DB telemetry (traces + metrics)
+**DB telemetry (traces + metrics)**
 - Spans: each DB call (Query/QueryRow/Exec) creates a span named `DB <OPERATION>` with attributes like `db.system=postgresql` and `db.operation=SELECT/INSERT/...`.
 - Metrics:
   - `sniply_db_query_duration_seconds` (histogram) with labels `db.system`, `db.operation`, `db.status`
@@ -212,10 +357,10 @@ DB telemetry (traces + metrics)
   - `src/internal/db/base.go` wraps the queryer to emit spans/metrics.
   - `src/cmd/api/main.go` calls `db.InitTelemetry("sniply-api")` during startup.
   
-Key environment variable
+**Key environment variable**
 - `OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317` (set in `src/docker-compose.yml`)
 
-Notes
+**Notes**
 - The API listens on the address configured in `cmd/api` (check the file if you need to change port).
 - Use `Authorization: Bearer <token>` for protected endpoints. Get a token via `POST /v1/auth/login`.
 
