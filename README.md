@@ -1,5 +1,11 @@
 # Sniply
 
+[![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)](#)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](#)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15%2B-336791?logo=postgresql&logoColor=white)](#)
+[![Observability](https://img.shields.io/badge/Observability-Grafana%20%7C%20Prometheus%20%7C%20Loki%20%7C%20Tempo-orange)](#)
+[![License](https://img.shields.io/badge/License-MIT-green)](#)
+
 ## Overview
 
 **Sniply** is a modern, production‑ready backend service for storing, searching, and managing **text and code snippets**.
