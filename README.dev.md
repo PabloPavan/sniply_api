@@ -40,7 +40,7 @@ This README was written to prevent common mistakes and loss of context.
 
 - **Never run `docker compose up` “raw”** → use the aliases (`DEV` / `PROD`)
 - **Migrations do not run automatically** → they must be executed explicitly
-- **Production exposes only 80/443** → everything else is internal
+- ** exposes only 80/443** → everything else is internal
 - **Secrets never go into Git**
 - **Traefik is the only external entry point**
 
@@ -76,13 +76,13 @@ Traefik (80/443)
 
 ```mermaid
 flowchart TD
-  Internet((Internet)) --> Traefik[Traefik : 80/443]
-  Traefik --> API[API (Go)]
-  API --> DB[(PostgreSQL)]
-  Traefik --> Grafana[Grafana]
-  Grafana --> Prometheus[Prometheus]
-  Grafana --> Loki[Loki]
-  Grafana --> Tempo[Tempo]
+  I((Internet)) --> T[Traefik 80 443]
+  T --> A[API Go]
+  A --> D[(PostgreSQL)]
+  T --> G[Grafana]
+  G --> P[Prometheus]
+  G --> L[Loki]
+  G --> M[Tempo]
 ```
 
 ---
@@ -221,7 +221,7 @@ $DEV down -v
 
 ## Production
 
-**Create environment file (outside Git)**
+### Create environment file (outside Git)
 
 On the server:
 
@@ -247,7 +247,7 @@ GRAFANA_ADMIN_PASSWORD=strong-password
 GRAFANA_BASIC_AUTH=user:$apr1$HASH
 ```
 
-**Load variables into the shell**
+### Load variables into the shell
 ```
 set -a; source /etc/sniply/sniply.env; set +a
 ```
