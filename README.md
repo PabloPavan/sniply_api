@@ -22,6 +22,8 @@ O objetivo do projeto é fornecer um **endpoint simples e eficiente** para:
 - **Busca:** PostgreSQL Full-Text Search + `pg_trgm`
 - **Migrações:** `golang-migrate`
 - **Containerização:** Docker + Docker Compose
+- **Observabilidade:** OpenTelemetry + Grafana (Prometheus, Loki, Tempo)
+- **Documentação da API:** Swagger (OpenAPI)
 
 ---
 
