@@ -16,11 +16,13 @@ This README was written to prevent common mistakes and loss of context.
 - [Command Convention](#command-convention)
 - [Development](#development)
   - [Start environment](#start-environment)
+  - [Dev HTTPS endpoints](#dev-https-endpoints)
   - [Run migrations](#run-migrations)
   - [Logs](#logs)
   - [Status](#status)
   - [Daily development cycle](#daily-development-cycle)
   - [Reset environment (DEV)](#reset-environment-dev)
+- [Local HTTPS with mkcert (Linux + WSL)](#local-https-with-mkcert-linux--wsl)
 - [Production](#production)
   - [Create environment file (outside Git)](#create-environment-file-outside-git)
   - [Load variables into the shell](#load-variables-into-the-shell)
@@ -40,9 +42,9 @@ This README was written to prevent common mistakes and loss of context.
 
 - **Never run `docker compose up` “raw”** → use the aliases (`DEV` / `PROD`)
 - **Migrations do not run automatically** → they must be executed explicitly
-- ** exposes only 80/443** → everything else is internal
+- **In production, Traefik exposes only 80/443** → in dev, extra ports are published (including 8081 for the dashboard)
 - **Secrets never go into Git**
-- **Traefik is the only external entry point**
+- **In production, Traefik is the only external entry point**
 
 ---
 
@@ -53,9 +55,10 @@ Sniply runs as **a single Docker stack**, composed of:
 - **Traefik** – Reverse proxy and TLS (HTTPS)
 - **API (Go)** – Main service
 - **PostgreSQL** – Containerized database
-- **Observability** – Grafana, Prometheus, Loki, Tempo, OpenTelemetry
+- **OTel Collector** – Receives OTLP from the API and exports to the observability backends
+- **Observability** – Grafana, Prometheus, Loki, Tempo
 
-All services, except Traefik, run on internal networks.
+All services, except Traefik, run on internal networks. The API and DB use the `app` network, observability uses `sniply-observability`, and Traefik routes via `proxy`.
 
 ```
 Internet
@@ -70,6 +73,7 @@ Traefik (80/443)
          ├── Prometheus
          ├── Loki
          └── Tempo
+API -> OTel Collector -> (Prometheus/Loki/Tempo)
 ```
 
 ### Architecture Diagram (Mermaid)
@@ -80,9 +84,13 @@ flowchart TD
   T --> A[API Go]
   A --> D[(PostgreSQL)]
   T --> G[Grafana]
-  G --> P[Prometheus]
-  G --> L[Loki]
-  G --> M[Tempo]
+  A --> C[OTel Collector]
+  C --> P[Prometheus]
+  C --> L[Loki]
+  C --> M[Tempo]
+  G --> P
+  G --> L
+  G --> M
 ```
 
 ---
@@ -91,16 +99,20 @@ flowchart TD
 
 ```
 .
-├── compose.base.yml
-├── compose.dev.yml
-├── compose.prod.yml
-├── Dockerfile
-├── migrations/
-├── grafana/
-├── prometheus.yml
-├── loki-config.yaml
-├── tempo.yaml
-├── otel-collector.yml
+├── README.md
+├── README.dev.md
+├── src/
+│   ├── compose.base.yml
+│   ├── compose.dev.yml
+│   ├── compose.prod.yml
+│   ├── Dockerfile
+│   ├── migrations/
+│   └── observability/
+│       ├── grafana/
+│       ├── prometheus.yml
+│       ├── loki-config.yaml
+│       ├── tempo.yaml
+│       └── otel-collector.yml
 ```
 
 Prerequisites
@@ -113,6 +125,8 @@ You need:
 - Docker >= 24
 - Docker Compose v2 (`docker compose`)
 - Free ports:
+  - 80/443 (Traefik)
+  - 8081 (Traefik dashboard)
   - 8080 (API)
   - 5432 (Postgres)
   - 3001 (Grafana)
@@ -131,16 +145,16 @@ You need:
 
 **⚠️ Important rule
 Never run only docker compose up.
-Always use compose.base.yml + an override.**
+Always use `src/compose.base.yml` + an override.**
 
 ### Development
 ```
-DEV="docker compose -f compose.base.yml -f compose.dev.yml"
+DEV="docker compose -f src/compose.base.yml -f src/compose.dev.yml"
 ```
 
 ### Production
 ```
-PROD="docker compose -f compose.base.yml -f compose.prod.yml"
+PROD="docker compose -f src/compose.base.yml -f src/compose.prod.yml"
 ```
 
 ---
@@ -156,6 +170,13 @@ This starts:
 - Postgres
 - Observability
 - Traefik (even in dev)
+
+### Dev HTTPS endpoints
+
+With local TLS enabled, use these URLs:
+- API: https://api.localhost
+- Grafana: https://grafana.localhost
+- Traefik dashboard: https://localhost/dashboard/#/
 
 ### Run migrations
 ```
@@ -218,6 +239,67 @@ $DEV down -v
 ```
 
 ⚠️ Never use -v in production
+
+## Local HTTPS with mkcert (Linux + WSL)
+
+This project uses local HTTPS in dev (Traefik + custom certs). The steps below create and trust a local CA and generate certs for the dev hosts.
+
+### 1) Install mkcert
+
+Debian/Ubuntu:
+```
+sudo apt update
+sudo apt install -y libnss3-tools
+sudo apt install -y mkcert
+```
+
+If you use Homebrew on Linux:
+```
+brew install mkcert
+```
+
+Or download the mkcert binary and add it to your PATH.
+
+### 2) Install the local CA (once per machine)
+```
+mkcert -install
+```
+
+### 3) Generate certs for dev hosts
+
+From the repo root:
+```
+mkcert -cert-file src/certs/localhost.pem -key-file src/certs/localhost-key.pem \
+  localhost 127.0.0.1 api.localhost grafana.localhost traefik.localhost
+```
+
+This creates:
+```
+src/certs/localhost.pem
+src/certs/localhost-key.pem
+```
+
+### WSL: trust the mkcert CA on Windows
+
+You need to install the **mkcert root CA** on Windows (not the host cert).
+
+1) Find the CA path in WSL:
+```
+mkcert -CAROOT
+```
+
+2) Copy the root CA to Windows (example):
+```
+cp "$(mkcert -CAROOT)/rootCA.pem" /mnt/c/Users/<SEU_USUARIO>/Downloads/rootCA.pem
+```
+
+3) Install into Windows "Trusted Root Certification Authorities":
+
+Open PowerShell **as Administrator** and run:
+```
+certutil -delstore -f "Root" "mkcert development CA"
+certutil -addstore -f "Root" "$env:USERPROFILE\\Downloads\\rootCA.pem"
+```
 
 ## Production
 
@@ -301,7 +383,7 @@ $PROD exec db psql -U sniply -d sniply
 Start the API debug
 ----------------------------------------------
 ```bash
-docker compose --profile debug up --build api-debug
+$DEV --profile debug up -d --build api-debug
 ```
 **setup.json for vscode:**
 ```json
@@ -353,19 +435,21 @@ Telemetry
 ---------------------------------
 
 Observability (Grafana, Prometheus, Loki, Tempo, OTEL)
-This stack is split into two docker-compose files and connected by a shared Docker network.
+This stack runs in the same compose setup as the API and is connected through the `sniply-observability` network.
 
 **High-level flow**
 ```
 API (OTLP) --> OTel Collector --> Tempo (traces)
                            \-> Loki (logs)
                            \-> Prometheus (metrics scrape)
+Traefik (Prometheus metrics) --> Prometheus (metrics scrape)
 ```
 
 ### Observability Flow (Mermaid)
 
 ```mermaid
 sequenceDiagram
+  participant TRA as Traefik
   participant API as API (Go)
   participant COL as OTel Collector
   participant TMP as Tempo
@@ -377,6 +461,7 @@ sequenceDiagram
   COL->>TMP: traces
   COL->>LOK: logs
   COL->>PRO: metrics endpoint (scrape)
+  TRA->>PRO: /metrics (scrape)
   PRO->>GRA: metrics datasource
   LOK->>GRA: logs datasource
   TMP->>GRA: traces datasource
@@ -394,18 +479,20 @@ sequenceDiagram
 - `src/internal/db/telemetry.go` adds DB spans + DB metrics (latency/errors).
 - `src/internal/db/base.go` wraps the queryer to emit DB telemetry on each call.
 - `src/observability/otel-collector.yml` receives OTLP and exports to Tempo (traces), Loki (logs), and a Prometheus scrape endpoint (metrics).
-- `src/observability/prometheus.yml` scrapes only the collector metrics endpoint.
+- `src/observability/prometheus.yml` scrapes the collector metrics endpoint and Traefik metrics.
 - `src/observability/tempo.yaml` configures Tempo storage and OTLP receiver.
 - `src/observability/grafana/provisioning/datasources/datasources.yml` declares Prometheus, Loki, and Tempo datasources.
 - `src/observability/grafana/dashboards/sniply-api.json` defines the HTTP and DB dashboards.
-- `src/observability/docker-compose.yml` runs the observability stack and attaches the collector to the shared network.
-- `src/docker-compose.yml` runs the app stack and configures OTEL endpoint + network.
+- `src/compose.base.yml` defines the full stack, shared networks, and OTEL endpoint for the API.
+- `src/compose.dev.yml` exposes dev ports and Traefik dashboard routing.
+- `src/compose.prod.yml` contains production overrides.
 
 **Signal mapping**
 ```
 Traces:  API -> OTLP -> OTel Collector -> Tempo -> Grafana
 Logs:    API -> OTLP -> OTel Collector -> Loki  -> Grafana
 Metrics: API -> OTLP -> OTel Collector -> Prometheus -> Grafana
+Traefik metrics: Traefik -> Prometheus -> Grafana
 DB:      API -> OTLP -> Otel Collector -> Prometheus -> Grafana
 ```
 **DB telemetry (traces + metrics)**
@@ -419,7 +506,7 @@ DB:      API -> OTLP -> Otel Collector -> Prometheus -> Grafana
   - `src/cmd/api/main.go` calls `db.InitTelemetry("sniply-api")` during startup.
   
 **Key environment variable**
-- `OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317` (set in `src/docker-compose.yml`)
+- `OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317` (set in `src/compose.base.yml`)
 
 **Notes**
 - The API listens on the address configured in `cmd/api` (check the file if you need to change port).

@@ -1,6 +1,6 @@
 # Sniply
 
-[![Go](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go&logoColor=white)](#)
+[![Go](https://img.shields.io/badge/Go-1.24%2B-00ADD8?logo=go&logoColor=white)](#)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](#)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18%2B-336791?logo=postgresql&logoColor=white)](#)
 [![Observability](https://img.shields.io/badge/Observability-Grafana%20%7C%20Prometheus%20%7C%20Loki%20%7C%20Tempo-orange)](#)
@@ -12,6 +12,8 @@
 It is designed with a strong focus on simplicity, performance, and clean architecture, making it suitable for personal tools, developer platforms, or integration into larger systems.
 
 The project follows best practices commonly found in high‑quality open‑source backend repositories: clear domain boundaries, explicit configuration, containerized workflows, and first‑class API documentation.
+
+At runtime, all traffic flows through Traefik (TLS + routing), the API talks to PostgreSQL, and observability is handled via OpenTelemetry + Grafana (Prometheus, Loki, Tempo).
 
 ---
 
@@ -36,12 +38,13 @@ The project follows best practices commonly found in high‑quality open‑sourc
 | ---------------- | --------------------------------------- |
 | Language         | Go                                      |
 | HTTP Router      | `chi`                                   |
-| Database         | PostgreSQL 16                           |
+| Database         | PostgreSQL 18                           |
 | Search           | Full‑Text Search + `pg_trgm`            |
 | Migrations       | `golang-migrate`                        |
 | Containerization | Docker, Docker Compose                  |
 | API Docs         | Swagger / OpenAPI                       |
-| Observability    | OpenTelemetry (Prometheus, Loki, Tempo) |
+| Proxy            | Traefik                                 |
+| Observability    | OpenTelemetry + Grafana (Prometheus, Loki, Tempo) |
 
 ---
 
@@ -51,9 +54,9 @@ The project follows best practices commonly found in high‑quality open‑sourc
 
 Make sure you have the following installed:
 
-* Go 1.20 or newer
+* Go 1.24 or newer
 * Docker and Docker Compose
-* PostgreSQL 16 (or run via Docker)
+* PostgreSQL 18 (or run via Docker)
 
 ---
 
@@ -70,7 +73,7 @@ cd Sniply
 
 ## Running with Docker (Recommended)
 
-For development, debugging, and advanced Docker workflows (including debug images, hot reload, and troubleshooting), please refer to  [README.dev.md](./README.dev.md).
+For development, debugging, and advanced Docker workflows (including debug images and troubleshooting), please refer to [README.dev.md](./README.dev.md).
 That document describes the recommended and correct way to run Sniply with Docker in development environments.
 
 ## API Overview
@@ -170,11 +173,15 @@ POST /v1/snippets
 ## Project Structure (High Level)
 
 ```text
-cmd/            # Application entrypoints
-internal/       # Application core (domain, services, repositories)
-migrations/     # Database migrations
-httpapi/        # HTTP handlers and routing
-pkg/            # Shared utilities
+src/
+  cmd/                # Application entrypoints
+  internal/           # Application core (domain, services, repositories)
+  migrations/         # Database migrations
+  observability/      # Grafana/Prometheus/Loki/Tempo configs
+  compose.base.yml    # Base Docker Compose
+  compose.dev.yml     # Development overrides
+  compose.prod.yml    # Production overrides
+  Dockerfile
 ```
 
 ---
