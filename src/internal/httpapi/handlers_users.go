@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/PabloPavan/Sniply/internal"
-	"github.com/PabloPavan/Sniply/internal/auth"
+	"github.com/PabloPavan/Sniply/internal/identity"
 	"github.com/PabloPavan/Sniply/internal/telemetry"
 	"github.com/PabloPavan/Sniply/internal/users"
 	"github.com/go-chi/chi/v5"
@@ -123,7 +123,7 @@ func (h *UsersHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Summary List users (admin)
 // @Tags users
 // @Produce json
-// @Security BearerAuth
+// @Security SessionAuth
 // @Param q query string false "search"
 // @Param limit query int false "limit"
 // @Param offset query int false "offset"
@@ -133,13 +133,13 @@ func (h *UsersHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string
 // @Router /users [get]
 func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
-	_, ok := auth.UserID(r.Context())
+	_, ok := identity.UserID(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	if !auth.IsAdmin(r.Context()) {
+	if !identity.IsAdmin(r.Context()) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
@@ -189,14 +189,14 @@ func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Summary Get current user
 // @Tags users
 // @Produce json
-// @Security BearerAuth
+// @Security SessionAuth
 // @Success 200 {object} users.UserResponse
 // @Failure 401 {string} string
 // @Failure 404 {string} string
 // @Failure 500 {string} string
 // @Router /users/me [get]
 func (h *UsersHandler) Me(w http.ResponseWriter, r *http.Request) {
-	userID, ok := auth.UserID(r.Context())
+	userID, ok := identity.UserID(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -226,7 +226,7 @@ func (h *UsersHandler) Me(w http.ResponseWriter, r *http.Request) {
 // @Summary Update current user
 // @Tags users
 // @Accept json
-// @Security BearerAuth
+// @Security SessionAuth
 // @Param body body UserUpdateRequest true "user"
 // @Success 204
 // @Failure 400 {string} string
@@ -235,7 +235,7 @@ func (h *UsersHandler) Me(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string
 // @Router /users/me [put]
 func (h *UsersHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
-	userID, ok := auth.UserID(r.Context())
+	userID, ok := identity.UserID(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -247,14 +247,14 @@ func (h *UsersHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 // DeleteMe User
 // @Summary Delete current user
 // @Tags users
-// @Security BearerAuth
+// @Security SessionAuth
 // @Success 204
 // @Failure 401 {string} string
 // @Failure 404 {string} string
 // @Failure 500 {string} string
 // @Router /users/me [delete]
 func (h *UsersHandler) DeleteMe(w http.ResponseWriter, r *http.Request) {
-	userID, ok := auth.UserID(r.Context())
+	userID, ok := identity.UserID(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -267,7 +267,7 @@ func (h *UsersHandler) DeleteMe(w http.ResponseWriter, r *http.Request) {
 // @Summary Update user (admin or self)
 // @Tags users
 // @Accept json
-// @Security BearerAuth
+// @Security SessionAuth
 // @Param id path string true "user id"
 // @Param body body UserUpdateRequest true "user"
 // @Success 204
@@ -283,7 +283,7 @@ func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requesterID, ok := auth.UserID(r.Context())
+	requesterID, ok := identity.UserID(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -300,7 +300,7 @@ func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 // Delete User
 // @Summary Delete user (admin or self)
 // @Tags users
-// @Security BearerAuth
+// @Security SessionAuth
 // @Param id path string true "user id"
 // @Success 204
 // @Failure 400 {string} string
@@ -316,7 +316,7 @@ func (h *UsersHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requesterID, ok := auth.UserID(r.Context())
+	requesterID, ok := identity.UserID(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -335,13 +335,13 @@ func (h *UsersHandler) isAllowedToMutateUser(ctx context.Context, requesterID, t
 		return true
 	}
 
-	return auth.IsAdmin(ctx)
+	return identity.IsAdmin(ctx)
 }
 
 func (h *UsersHandler) updateUserByID(w http.ResponseWriter, r *http.Request, targetID string) {
 	ctx := r.Context()
 
-	isAdmin := auth.IsAdmin(ctx)
+	isAdmin := identity.IsAdmin(ctx)
 
 	var raw UserUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {

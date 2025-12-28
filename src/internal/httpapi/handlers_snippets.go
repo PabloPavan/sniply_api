@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/PabloPavan/Sniply/internal"
-	"github.com/PabloPavan/Sniply/internal/auth"
+	"github.com/PabloPavan/Sniply/internal/identity"
 	"github.com/PabloPavan/Sniply/internal/snippets"
 	"github.com/PabloPavan/Sniply/internal/telemetry"
 	"github.com/PabloPavan/Sniply/internal/users"
@@ -35,7 +35,7 @@ type SnippetsHandler struct {
 // @Tags snippets
 // @Accept json
 // @Produce json
-// @Security BearerAuth
+// @Security SessionAuth
 // @Param body body snippets.CreateSnippetRequest true "snippet"
 // @Success 201 {object} snippets.Snippet
 // @Failure 400 {string} string
@@ -44,7 +44,7 @@ type SnippetsHandler struct {
 // @Failure 500 {string} string
 // @Router /snippets [post]
 func (h *SnippetsHandler) Create(w http.ResponseWriter, r *http.Request) {
-	creatorID, ok := auth.UserID(r.Context())
+	creatorID, ok := identity.UserID(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -118,7 +118,7 @@ func (h *SnippetsHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Summary Get snippet by id
 // @Tags snippets
 // @Produce json
-// @Security BearerAuth
+// @Security SessionAuth
 // @Param id path string true "snippet id"
 // @Success 200 {object} snippets.Snippet
 // @Failure 400 {string} string
@@ -150,7 +150,7 @@ func (h *SnippetsHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 // @Summary List snippets
 // @Tags snippets
 // @Produce json
-// @Security BearerAuth
+// @Security SessionAuth
 // @Param q query string false "search"
 // @Param creator query string false "creator id"
 // @Param language query string false "language"
@@ -195,13 +195,13 @@ func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		requesterID, ok := auth.UserID(r.Context())
+		requesterID, ok := identity.UserID(r.Context())
 		if !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 
-		isAdmin := auth.IsAdmin(r.Context())
+		isAdmin := identity.IsAdmin(r.Context())
 		if !isAdmin && requesterID != creator {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
@@ -245,7 +245,7 @@ func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Summary Update snippet
 // @Tags snippets
 // @Accept json
-// @Security BearerAuth
+// @Security SessionAuth
 // @Param id path string true "snippet id"
 // @Param body body snippets.CreateSnippetRequest true "snippet"
 // @Success 204
@@ -255,7 +255,7 @@ func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string
 // @Router /snippets/{id} [put]
 func (h *SnippetsHandler) Update(w http.ResponseWriter, r *http.Request) {
-	creatorID, ok := auth.UserID(r.Context())
+	creatorID, ok := identity.UserID(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -314,7 +314,7 @@ func (h *SnippetsHandler) Update(w http.ResponseWriter, r *http.Request) {
 // Delete Snippet
 // @Summary Delete snippet
 // @Tags snippets
-// @Security BearerAuth
+// @Security SessionAuth
 // @Param id path string true "snippet id"
 // @Success 204
 // @Failure 400 {string} string
@@ -323,7 +323,7 @@ func (h *SnippetsHandler) Update(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string
 // @Router /snippets/{id} [delete]
 func (h *SnippetsHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	creatorID, ok := auth.UserID(r.Context())
+	creatorID, ok := identity.UserID(r.Context())
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return

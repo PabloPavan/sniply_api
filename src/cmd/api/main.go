@@ -4,21 +4,24 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/PabloPavan/Sniply/internal"
-	"github.com/PabloPavan/Sniply/internal/auth"
 	"github.com/PabloPavan/Sniply/internal/db"
 	"github.com/PabloPavan/Sniply/internal/httpapi"
+	"github.com/PabloPavan/Sniply/internal/session"
 	"github.com/PabloPavan/Sniply/internal/snippets"
 	"github.com/PabloPavan/Sniply/internal/telemetry"
 	"github.com/PabloPavan/Sniply/internal/users"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
 	port := internal.Env("APP_PORT", "8080")
 	databaseURL := internal.MustEnv("DATABASE_URL")
-	jwtSecret := internal.MustEnv("JWT_SECRET")
+	redisURL := internal.MustEnv("REDIS_URL")
 
 	ctx := context.Background()
 
@@ -36,22 +39,44 @@ func main() {
 	}
 	defer d.Close()
 
+	redisOpt, err := redis.ParseURL(redisURL)
+	if err != nil {
+		log.Fatalf("redis url error: %v", err)
+	}
+	redisClient := redis.NewClient(redisOpt)
+	defer redisClient.Close()
+
 	dbBase := db.NewBase(d.Pool, 3*time.Second)
 	snRepo := snippets.NewRepository(dbBase)
 	usrRepo := users.NewRepository(dbBase)
 
-	authSvc := &auth.Service{
-		Secret:    []byte(jwtSecret),
-		Issuer:    "sniply-api",
-		Audience:  "sniply-client",
-		AccessTTL: 20 * time.Hour,
+	sessionPrefix := internal.Env("SESSION_REDIS_PREFIX", "sniply:session:")
+	sessionTTL := parseDurationEnv("SESSION_TTL", 7*24*time.Hour)
+	sessionManager := &session.Manager{
+		Store:   session.NewRedisStore(redisClient, sessionPrefix),
+		TTL:     sessionTTL,
+		IDBytes: 32,
+	}
+
+	cookieSecure := parseBoolEnv("SESSION_COOKIE_SECURE", true)
+	cookieSameSite := parseSameSiteEnv("SESSION_COOKIE_SAMESITE", http.SameSiteLaxMode)
+	cookie := session.CookieConfig{
+		Name:     internal.Env("SESSION_COOKIE_NAME", "sniply_session"),
+		Path:     internal.Env("SESSION_COOKIE_PATH", "/"),
+		Domain:   internal.Env("SESSION_COOKIE_DOMAIN", ""),
+		Secure:   cookieSecure,
+		SameSite: cookieSameSite,
 	}
 
 	app := &httpapi.App{
 		Health:   &httpapi.HealthHandler{DB: d.Pool},
 		Snippets: &httpapi.SnippetsHandler{Repo: snRepo, RepoUser: usrRepo},
 		Users:    &httpapi.UsersHandler{Repo: usrRepo},
-		Auth:     &httpapi.AuthHandler{Users: usrRepo, Auth: authSvc},
+		Auth: &httpapi.AuthHandler{
+			Users:    usrRepo,
+			Sessions: sessionManager,
+			Cookie:   cookie,
+		},
 	}
 
 	srv := &http.Server{
@@ -63,5 +88,48 @@ func main() {
 	log.Printf("api listening on :%s", port)
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("server error: %v", err)
+	}
+}
+
+func parseDurationEnv(key string, def time.Duration) time.Duration {
+	val := strings.TrimSpace(internal.Env(key, ""))
+	if val == "" {
+		return def
+	}
+	d, err := time.ParseDuration(val)
+	if err != nil {
+		log.Printf("invalid %s: %q, using default", key, val)
+		return def
+	}
+	return d
+}
+
+func parseBoolEnv(key string, def bool) bool {
+	val := strings.TrimSpace(internal.Env(key, ""))
+	if val == "" {
+		return def
+	}
+	b, err := strconv.ParseBool(val)
+	if err != nil {
+		log.Printf("invalid %s: %q, using default", key, val)
+		return def
+	}
+	return b
+}
+
+func parseSameSiteEnv(key string, def http.SameSite) http.SameSite {
+	val := strings.ToLower(strings.TrimSpace(internal.Env(key, "")))
+	switch val {
+	case "strict":
+		return http.SameSiteStrictMode
+	case "none":
+		return http.SameSiteNoneMode
+	case "lax":
+		return http.SameSiteLaxMode
+	case "":
+		return def
+	default:
+		log.Printf("invalid %s: %q, using default", key, val)
+		return def
 	}
 }

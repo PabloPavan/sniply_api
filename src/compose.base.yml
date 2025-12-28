@@ -45,6 +45,19 @@ services:
     networks:
       - app
 
+  redis:
+    image: redis:8.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - redis-data:/data
+    networks:
+      - app
+
   migrate:
     image: migrate/migrate:v4.19.1
     profiles: ["migrate"]
@@ -68,10 +81,12 @@ services:
     environment:
       APP_PORT: "8080"
       DATABASE_URL: "postgres://sniply:${POSTGRES_PASSWORD}@db:5432/sniply?sslmode=disable"
-      JWT_SECRET: ${JWT_SECRET}
+      REDIS_URL: "redis://redis:6379/0"
       OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector:4317"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - app
@@ -171,6 +186,7 @@ services:
 
 volumes:
   pgdata:
+  redis-data:
   grafana-data:
   tempo-data:
   traefik-letsencrypt:

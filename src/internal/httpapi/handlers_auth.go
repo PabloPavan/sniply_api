@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/PabloPavan/Sniply/internal/auth"
+	"github.com/PabloPavan/Sniply/internal/session"
 	"github.com/PabloPavan/Sniply/internal/telemetry"
 	"github.com/PabloPavan/Sniply/internal/users"
 	"go.opentelemetry.io/otel/attribute"
@@ -19,8 +19,9 @@ type AuthUsersRepo interface {
 }
 
 type AuthHandler struct {
-	Users AuthUsersRepo
-	Auth  *auth.Service
+	Users    AuthUsersRepo
+	Sessions *session.Manager
+	Cookie   session.CookieConfig
 }
 
 type LoginRequest struct {
@@ -29,9 +30,7 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresAt   string `json:"expires_at"` // RFC3339
+	SessionExpiresAt string `json:"session_expires_at"` // RFC3339
 }
 
 // Login Auth
@@ -46,7 +45,7 @@ type LoginResponse struct {
 // @Failure 500 {string} string
 // @Router /auth/login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	if h.Users == nil || h.Auth == nil {
+	if h.Users == nil || h.Sessions == nil {
 		http.Error(w, "auth not configured", http.StatusInternalServerError)
 		return
 	}
@@ -88,21 +87,21 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, span = telemetry.StartSpan(ctx, "auth.issue_token",
+	_, span = telemetry.StartSpan(ctx, "auth.create_session",
 		attribute.String("user.id", u.ID),
 		attribute.String("user.role", string(u.Role)),
 	)
-	tok, exp, err := h.Auth.IssueAccessToken(u.ID, string(u.Role))
+	sess, err := h.Sessions.Create(ctx, u.ID, string(u.Role))
 	span.End()
 	if err != nil {
-		http.Error(w, "failed to issue token", http.StatusInternalServerError)
+		http.Error(w, "failed to create session", http.StatusInternalServerError)
 		return
 	}
 
+	h.Cookie.Write(w, sess.ID, sess.ExpiresAt)
+
 	resp := LoginResponse{
-		AccessToken: tok,
-		TokenType:   "Bearer",
-		ExpiresAt:   exp.UTC().Format(time.RFC3339),
+		SessionExpiresAt: sess.ExpiresAt.UTC().Format(time.RFC3339),
 	}
 
 	telemetry.LogInfo(r.Context(), "user login",
@@ -113,4 +112,31 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
+}
+
+// Logout Auth
+// @Summary Logout
+// @Tags auth
+// @Produce json
+// @Success 204
+// @Failure 500 {string} string
+// @Router /auth/logout [post]
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	if h.Sessions == nil {
+		http.Error(w, "auth not configured", http.StatusInternalServerError)
+		return
+	}
+
+	name := h.Cookie.Name
+	if name == "" {
+		name = "sniply_session"
+	}
+
+	cookie, err := r.Cookie(name)
+	if err == nil && cookie.Value != "" {
+		_ = h.Sessions.Delete(r.Context(), cookie.Value)
+	}
+
+	h.Cookie.Clear(w)
+	w.WriteHeader(http.StatusNoContent)
 }

@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	_ "github.com/PabloPavan/Sniply/docs"
-	"github.com/PabloPavan/Sniply/internal/auth"
+	"github.com/PabloPavan/Sniply/internal/session"
 	"github.com/PabloPavan/Sniply/internal/telemetry"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -39,12 +39,13 @@ func NewRouter(app *App) http.Handler {
 		// Auth endpoints
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/login", app.Auth.Login)
+			r.Post("/logout", app.Auth.Logout)
 		})
 
 		r.Route("/snippets", func(r chi.Router) {
 			// Protected
 			r.Group(func(r chi.Router) {
-				r.Use(auth.Middleware(app.Auth.Auth))
+				r.Use(session.Middleware(app.Auth.Sessions, app.Auth.Cookie.Name))
 				r.Post("/", app.Snippets.Create)
 				r.Get("/", app.Snippets.List)
 				r.Get("/{id}", app.Snippets.GetByID)
@@ -59,7 +60,7 @@ func NewRouter(app *App) http.Handler {
 
 			// Protected
 			r.Group(func(r chi.Router) {
-				r.Use(auth.Middleware(app.Auth.Auth))
+				r.Use(session.Middleware(app.Auth.Sessions, app.Auth.Cookie.Name))
 
 				// Self endpoints
 				r.Get("/me", app.Users.Me)
