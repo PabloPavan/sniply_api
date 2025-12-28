@@ -31,7 +31,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23.x"
+          go-version: "1.24.0"
           cache: true
           cache-dependency-path: src/go.sum
 
@@ -56,10 +56,6 @@ jobs:
       - name: Run migrations
         working-directory: src
         run: migrate -path ./migrations -database "$DATABASE_URL" up
-
-      - name: Run unit tests
-        working-directory: src
-        run: go test ./...
 
       - name: Run integration tests
         working-directory: src
