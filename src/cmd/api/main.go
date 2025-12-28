@@ -11,6 +11,7 @@ import (
 	"github.com/PabloPavan/Sniply/internal"
 	"github.com/PabloPavan/Sniply/internal/db"
 	"github.com/PabloPavan/Sniply/internal/httpapi"
+	"github.com/PabloPavan/Sniply/internal/ratelimit"
 	"github.com/PabloPavan/Sniply/internal/session"
 	"github.com/PabloPavan/Sniply/internal/snippets"
 	"github.com/PabloPavan/Sniply/internal/telemetry"
@@ -68,14 +69,34 @@ func main() {
 		SameSite: cookieSameSite,
 	}
 
+	loginLimit := parseIntEnv("LOGIN_RATE_LIMIT", 5)
+	loginWindow := parseDurationEnv("LOGIN_RATE_WINDOW", time.Minute)
+	loginLimiter := &ratelimit.Limiter{
+		Client: redisClient,
+		Prefix: "sniply:ratelimit:",
+		Limit:  loginLimit,
+		Window: loginWindow,
+	}
+
+	cacheTTL := parseDurationEnv("SNIPPETS_CACHE_TTL", 2*time.Minute)
+	listCacheTTL := parseDurationEnv("SNIPPETS_LIST_CACHE_TTL", 30*time.Second)
+	snippetsCache := snippets.NewRedisCache(redisClient, "sniply:cache:")
+
 	app := &httpapi.App{
-		Health:   &httpapi.HealthHandler{DB: d.Pool},
-		Snippets: &httpapi.SnippetsHandler{Repo: snRepo, RepoUser: usrRepo},
-		Users:    &httpapi.UsersHandler{Repo: usrRepo},
+		Health: &httpapi.HealthHandler{DB: d.Pool},
+		Snippets: &httpapi.SnippetsHandler{
+			Repo:         snRepo,
+			RepoUser:     usrRepo,
+			Cache:        snippetsCache,
+			CacheTTL:     cacheTTL,
+			ListCacheTTL: listCacheTTL,
+		},
+		Users: &httpapi.UsersHandler{Repo: usrRepo},
 		Auth: &httpapi.AuthHandler{
-			Users:    usrRepo,
-			Sessions: sessionManager,
-			Cookie:   cookie,
+			Users:        usrRepo,
+			Sessions:     sessionManager,
+			Cookie:       cookie,
+			LoginLimiter: loginLimiter,
 		},
 	}
 
@@ -102,6 +123,19 @@ func parseDurationEnv(key string, def time.Duration) time.Duration {
 		return def
 	}
 	return d
+}
+
+func parseIntEnv(key string, def int) int {
+	val := strings.TrimSpace(internal.Env(key, ""))
+	if val == "" {
+		return def
+	}
+	n, err := strconv.Atoi(val)
+	if err != nil {
+		log.Printf("invalid %s: %q, using default", key, val)
+		return def
+	}
+	return n
 }
 
 func parseBoolEnv(key string, def bool) bool {

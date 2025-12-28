@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -26,8 +29,11 @@ type SnippetsRepo interface {
 }
 
 type SnippetsHandler struct {
-	Repo     SnippetsRepo
-	RepoUser UsersRepo
+	Repo         SnippetsRepo
+	RepoUser     UsersRepo
+	Cache        snippets.Cache
+	CacheTTL     time.Duration
+	ListCacheTTL time.Duration
 }
 
 // Create Snippet
@@ -132,6 +138,14 @@ func (h *SnippetsHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.Cache != nil {
+		if cached, ok, err := h.Cache.GetByID(r.Context(), id); err == nil && ok {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(cached)
+			return
+		}
+	}
+
 	s, err := h.Repo.GetByIDPublicOnly(r.Context(), id)
 	if err != nil {
 		if snippets.IsNotFound(err) {
@@ -140,6 +154,10 @@ func (h *SnippetsHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Error(w, "failed to load snippet", http.StatusInternalServerError)
 		return
+	}
+
+	if h.Cache != nil && h.CacheTTL > 0 {
+		_ = h.Cache.SetByID(r.Context(), s, h.CacheTTL)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -231,10 +249,24 @@ func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 		Offset:     offset,
 	}
 
+	if h.Cache != nil && visibility == snippets.VisibilityPublic {
+		cacheKey := listCacheKey(f)
+		if cached, ok, err := h.Cache.GetList(r.Context(), cacheKey); err == nil && ok {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(cached)
+			return
+		}
+	}
+
 	s, err := h.Repo.List(r.Context(), f)
 	if err != nil {
 		http.Error(w, "failed to list snippets", http.StatusInternalServerError)
 		return
+	}
+
+	if h.Cache != nil && visibility == snippets.VisibilityPublic && h.ListCacheTTL > 0 {
+		cacheKey := listCacheKey(f)
+		_ = h.Cache.SetList(r.Context(), cacheKey, s, h.ListCacheTTL)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -307,6 +339,10 @@ func (h *SnippetsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.Cache != nil {
+		_ = h.Cache.DeleteByID(r.Context(), id)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(s)
 }
@@ -344,5 +380,37 @@ func (h *SnippetsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.Cache != nil {
+		_ = h.Cache.DeleteByID(r.Context(), id)
+	}
+
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func listCacheKey(f snippets.SnippetFilter) string {
+	v := url.Values{}
+	if f.Query != "" {
+		v.Set("q", f.Query)
+	}
+	if f.Creator != "" {
+		v.Set("creator", f.Creator)
+	}
+	if f.Language != "" {
+		v.Set("language", f.Language)
+	}
+	if len(f.Tags) > 0 {
+		tags := append([]string(nil), f.Tags...)
+		sort.Strings(tags)
+		v.Set("tags", strings.Join(tags, ","))
+	}
+	if f.Visibility != "" {
+		v.Set("visibility", string(f.Visibility))
+	}
+	if f.Limit > 0 {
+		v.Set("limit", strconv.Itoa(f.Limit))
+	}
+	if f.Offset > 0 {
+		v.Set("offset", strconv.Itoa(f.Offset))
+	}
+	return v.Encode()
 }

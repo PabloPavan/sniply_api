@@ -3,10 +3,13 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/PabloPavan/Sniply/internal/ratelimit"
 	"github.com/PabloPavan/Sniply/internal/session"
 	"github.com/PabloPavan/Sniply/internal/telemetry"
 	"github.com/PabloPavan/Sniply/internal/users"
@@ -19,9 +22,10 @@ type AuthUsersRepo interface {
 }
 
 type AuthHandler struct {
-	Users    AuthUsersRepo
-	Sessions *session.Manager
-	Cookie   session.CookieConfig
+	Users        AuthUsersRepo
+	Sessions     *session.Manager
+	Cookie       session.CookieConfig
+	LoginLimiter *ratelimit.Limiter
 }
 
 type LoginRequest struct {
@@ -69,6 +73,31 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+
+	if h.LoginLimiter != nil {
+		ip := clientIP(r)
+		if ip != "" {
+			allowed, retryAfter, err := h.LoginLimiter.Allow(ctx, "login:ip:"+ip)
+			if err != nil {
+				http.Error(w, "rate limit error", http.StatusInternalServerError)
+				return
+			}
+			if !allowed {
+				writeRateLimit(w, retryAfter)
+				return
+			}
+		}
+
+		allowed, retryAfter, err := h.LoginLimiter.Allow(ctx, "login:email:"+req.Email)
+		if err != nil {
+			http.Error(w, "rate limit error", http.StatusInternalServerError)
+			return
+		}
+		if !allowed {
+			writeRateLimit(w, retryAfter)
+			return
+		}
+	}
 
 	u, err := h.Users.GetByEmail(ctx, req.Email)
 	if err != nil {
@@ -139,4 +168,23 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	h.Cookie.Clear(w)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return strings.TrimSpace(r.RemoteAddr)
+	}
+	return host
+}
+
+func writeRateLimit(w http.ResponseWriter, retryAfter time.Duration) {
+	if retryAfter > 0 {
+		seconds := int(retryAfter.Seconds())
+		if seconds <= 0 {
+			seconds = 1
+		}
+		w.Header().Set("Retry-After", strconv.Itoa(seconds))
+	}
+	http.Error(w, "too many requests", http.StatusTooManyRequests)
 }
