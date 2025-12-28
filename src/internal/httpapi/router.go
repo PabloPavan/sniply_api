@@ -3,9 +3,9 @@ package httpapi
 import (
 	"net/http"
 
-	_ "github.com/PabloPavan/Sniply/docs"
-	"github.com/PabloPavan/Sniply/internal/session"
-	"github.com/PabloPavan/Sniply/internal/telemetry"
+	_ "github.com/PabloPavan/sniply_api/docs"
+	"github.com/PabloPavan/sniply_api/internal/session"
+	"github.com/PabloPavan/sniply_api/internal/telemetry"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	httpSwagger "github.com/swaggo/http-swagger/v2"

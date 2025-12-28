@@ -3,7 +3,7 @@ package users
 import (
 	"errors"
 
-	"github.com/PabloPavan/Sniply/internal"
+	"github.com/PabloPavan/sniply_api/internal"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )

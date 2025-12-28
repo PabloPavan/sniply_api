@@ -3,7 +3,7 @@ package session
 import (
 	"net/http"
 
-	"github.com/PabloPavan/Sniply/internal/identity"
+	"github.com/PabloPavan/sniply_api/internal/identity"
 )
 
 func Middleware(mgr *Manager, cookieName string) func(http.Handler) http.Handler {

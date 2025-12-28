@@ -96,8 +96,8 @@ definitions:
     - RoleAdmin
 info:
   contact: {}
-  description: Sniply HTTP API.
-  title: Sniply API
+  description: sniply_api HTTP API.
+  title: sniply_api API
   version: "1.0"
 paths:
   /auth/login:

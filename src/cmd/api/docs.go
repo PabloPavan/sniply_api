@@ -2,9 +2,9 @@
 
 package main
 
-// @title Sniply API
+// @title sniply_api API
 // @version 1.0
-// @description Sniply HTTP API.
+// @description sniply_api HTTP API.
 // @BasePath /v1
 // @securityDefinitions.apikey SessionAuth
 // @in cookie

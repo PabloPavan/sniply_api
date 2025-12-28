@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/PabloPavan/Sniply/internal"
-	"github.com/PabloPavan/Sniply/internal/db"
+	"github.com/PabloPavan/sniply_api/internal"
+	"github.com/PabloPavan/sniply_api/internal/db"
 )
 
 type Repository struct {

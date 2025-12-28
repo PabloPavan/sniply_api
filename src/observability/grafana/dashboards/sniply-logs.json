@@ -190,7 +190,7 @@
     ]
   },
   "timezone": "",
-  "title": "Sniply Logs (Loki)",
+  "title": "sniply_api Logs (Loki)",
   "uid": "sniply-logs",
   "version": 1
 }

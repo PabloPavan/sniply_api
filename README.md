@@ -1,4 +1,4 @@
-# Sniply
+# sniply_api
 
 [![Go](https://img.shields.io/badge/Go-1.24%2B-00ADD8?logo=go&logoColor=white)](#)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](#)
@@ -10,7 +10,7 @@
 
 ## Overview
 
-**Sniply** is a modern, production‑ready backend service for storing, searching, and managing **text and code snippets**.
+**sniply_api** is a modern, production‑ready backend service for storing, searching, and managing **text and code snippets**.
 It is designed with a strong focus on simplicity, performance, and clean architecture, making it suitable for personal tools, developer platforms, or integration into larger systems.
 
 The project follows best practices commonly found in high‑quality open‑source backend repositories: clear domain boundaries, explicit configuration, containerized workflows, and first‑class API documentation.
@@ -71,8 +71,8 @@ Make sure you have the following installed:
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/PabloPavan/Sniply.git
-cd Sniply
+git clone https://github.com/PabloPavan/sniply_api.git
+cd sniply_api
 ```
 
 ---
@@ -80,7 +80,7 @@ cd Sniply
 ## Running with Docker (Recommended)
 
 For development, debugging, and advanced Docker workflows (including debug images and troubleshooting), please refer to [README.dev.md](./README.dev.md).
-That document describes the recommended and correct way to run Sniply with Docker in development environments.
+That document describes the recommended and correct way to run sniply_api with Docker in development environments.
 
 ## API Overview
 

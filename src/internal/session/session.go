@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/PabloPavan/Sniply/internal"
+	"github.com/PabloPavan/sniply_api/internal"
 )
 
 var ErrNotFound = errors.New("session not found")

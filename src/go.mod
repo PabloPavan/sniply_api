@@ -1,4 +1,4 @@
-module github.com/PabloPavan/Sniply
+module github.com/PabloPavan/sniply_api
 
 go 1.24.0
 

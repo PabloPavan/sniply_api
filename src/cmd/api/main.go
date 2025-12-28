@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/PabloPavan/Sniply/internal"
-	"github.com/PabloPavan/Sniply/internal/db"
-	"github.com/PabloPavan/Sniply/internal/httpapi"
-	"github.com/PabloPavan/Sniply/internal/ratelimit"
-	"github.com/PabloPavan/Sniply/internal/session"
-	"github.com/PabloPavan/Sniply/internal/snippets"
-	"github.com/PabloPavan/Sniply/internal/telemetry"
-	"github.com/PabloPavan/Sniply/internal/users"
+	"github.com/PabloPavan/sniply_api/internal"
+	"github.com/PabloPavan/sniply_api/internal/db"
+	"github.com/PabloPavan/sniply_api/internal/httpapi"
+	"github.com/PabloPavan/sniply_api/internal/ratelimit"
+	"github.com/PabloPavan/sniply_api/internal/session"
+	"github.com/PabloPavan/sniply_api/internal/snippets"
+	"github.com/PabloPavan/sniply_api/internal/telemetry"
+	"github.com/PabloPavan/sniply_api/internal/users"
 	"github.com/redis/go-redis/v9"
 )
 

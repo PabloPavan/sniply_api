@@ -1,8 +1,8 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "Sniply HTTP API.",
-        "title": "Sniply API",
+        "description": "sniply_api HTTP API.",
+        "title": "sniply_api API",
         "contact": {},
         "version": "1.0"
     },

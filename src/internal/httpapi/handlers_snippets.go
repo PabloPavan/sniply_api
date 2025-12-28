@@ -12,11 +12,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/PabloPavan/Sniply/internal"
-	"github.com/PabloPavan/Sniply/internal/identity"
-	"github.com/PabloPavan/Sniply/internal/snippets"
-	"github.com/PabloPavan/Sniply/internal/telemetry"
-	"github.com/PabloPavan/Sniply/internal/users"
+	"github.com/PabloPavan/sniply_api/internal"
+	"github.com/PabloPavan/sniply_api/internal/identity"
+	"github.com/PabloPavan/sniply_api/internal/snippets"
+	"github.com/PabloPavan/sniply_api/internal/telemetry"
+	"github.com/PabloPavan/sniply_api/internal/users"
 	"go.opentelemetry.io/otel/attribute"
 )
 

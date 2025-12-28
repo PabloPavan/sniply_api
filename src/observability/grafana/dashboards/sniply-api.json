@@ -864,7 +864,7 @@
     ]
   },
   "timezone": "",
-  "title": "Sniply API - HTTP (RED)",
+  "title": "sniply_api API - HTTP (RED)",
   "uid": "sniply-http-red",
   "version": 2
 }

@@ -1,5 +1,5 @@
-# Sniply — Onboarding Guide (Docker & Deploy)
-This document explains **how to run, develop, migrate, and deploy** Sniply using Docker Compose.
+# sniply_api — Onboarding Guide (Docker & Deploy)
+This document explains **how to run, develop, migrate, and deploy** sniply_api using Docker Compose.
 
 If you are new to the project, **read it in order**.  
 This README was written to prevent common mistakes and loss of context.
@@ -50,7 +50,7 @@ This README was written to prevent common mistakes and loss of context.
 
 ## Architecture Overview
 
-Sniply runs as **a single Docker stack**, composed of:
+sniply_api runs as **a single Docker stack**, composed of:
 
 - **Traefik** – Reverse proxy and TLS (HTTPS)
 - **API (Go)** – Main service

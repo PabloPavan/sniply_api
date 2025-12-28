@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/PabloPavan/Sniply/internal/ratelimit"
-	"github.com/PabloPavan/Sniply/internal/session"
-	"github.com/PabloPavan/Sniply/internal/telemetry"
-	"github.com/PabloPavan/Sniply/internal/users"
+	"github.com/PabloPavan/sniply_api/internal/ratelimit"
+	"github.com/PabloPavan/sniply_api/internal/session"
+	"github.com/PabloPavan/sniply_api/internal/telemetry"
+	"github.com/PabloPavan/sniply_api/internal/users"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/bcrypt"
 )

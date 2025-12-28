@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/PabloPavan/Sniply/internal"
-	"github.com/PabloPavan/Sniply/internal/db"
+	"github.com/PabloPavan/sniply_api/internal"
+	"github.com/PabloPavan/sniply_api/internal/db"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
