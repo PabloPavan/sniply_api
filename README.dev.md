@@ -338,6 +338,11 @@ GRAFANA_ADMIN_PASSWORD=strong-password
 GRAFANA_BASIC_AUTH=user:$apr1$HASH
 ```
 
+Session configuration (optional):
+- `SESSION_TTL` (example: `2h`)
+- `SESSION_REFRESH_BEFORE` (example: `10m`)
+- `SESSION_MAX_AGE` (example: `8h`)
+
 ### Load variables into the shell
 ```
 set -a; source /etc/sniply/sniply.env; set +a

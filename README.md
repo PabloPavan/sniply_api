@@ -188,6 +188,14 @@ POST /v1/snippets
 * Always run behind HTTPS in production
 * Validate environment variables before startup
 
+## Session Configuration
+
+Session behavior is controlled by three environment variables:
+
+* `SESSION_TTL` – sliding window duration for active sessions
+* `SESSION_REFRESH_BEFORE` – refresh the session when it is within this window of expiry
+* `SESSION_MAX_AGE` – hard close absolute limit since login
+
 ---
 
 ## Project Structure (High Level)

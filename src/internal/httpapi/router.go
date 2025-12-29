@@ -45,7 +45,7 @@ func NewRouter(app *App) http.Handler {
 		r.Route("/snippets", func(r chi.Router) {
 			// Protected
 			r.Group(func(r chi.Router) {
-				r.Use(session.Middleware(app.Auth.Sessions, app.Auth.Cookie.Name))
+				r.Use(session.Middleware(app.Auth.Sessions, app.Auth.Cookie))
 				r.Post("/", app.Snippets.Create)
 				r.Get("/", app.Snippets.List)
 				r.Get("/{id}", app.Snippets.GetByID)
@@ -60,7 +60,7 @@ func NewRouter(app *App) http.Handler {
 
 			// Protected
 			r.Group(func(r chi.Router) {
-				r.Use(session.Middleware(app.Auth.Sessions, app.Auth.Cookie.Name))
+				r.Use(session.Middleware(app.Auth.Sessions, app.Auth.Cookie))
 
 				// Self endpoints
 				r.Get("/me", app.Users.Me)

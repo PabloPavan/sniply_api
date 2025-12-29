@@ -53,10 +53,14 @@ func main() {
 
 	sessionPrefix := internal.Env("SESSION_REDIS_PREFIX", "sniply:session:")
 	sessionTTL := parseDurationEnv("SESSION_TTL", 7*24*time.Hour)
+	sessionMaxAge := parseDurationEnv("SESSION_MAX_AGE", 8*time.Hour)
+	sessionRefreshBefore := parseDurationEnv("SESSION_REFRESH_BEFORE", 10*time.Minute)
 	sessionManager := &session.Manager{
-		Store:   session.NewRedisStore(redisClient, sessionPrefix),
-		TTL:     sessionTTL,
-		IDBytes: 32,
+		Store:         session.NewRedisStore(redisClient, sessionPrefix),
+		TTL:           sessionTTL,
+		MaxAge:        sessionMaxAge,
+		RefreshBefore: sessionRefreshBefore,
+		IDBytes:       32,
 	}
 
 	cookieSecure := parseBoolEnv("SESSION_COOKIE_SECURE", true)
