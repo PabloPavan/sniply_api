@@ -173,6 +173,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/httpapi.APIKeyCreateRequest'
+      - description: CSRF token (required for SessionAuth)
+        in: header
+        name: X-CSRF-Token
+        type: string
       produces:
       - application/json
       responses:
@@ -204,6 +208,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: CSRF token (required for SessionAuth)
+        in: header
+        name: X-CSRF-Token
         type: string
       produces:
       - application/json
@@ -360,6 +368,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/snippets.CreateSnippetRequest'
+      - description: CSRF token (required for SessionAuth)
+        in: header
+        name: X-CSRF-Token
+        type: string
       produces:
       - application/json
       responses:
@@ -396,6 +408,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: CSRF token (required for SessionAuth)
+        in: header
+        name: X-CSRF-Token
         type: string
       responses:
         "204":
@@ -469,6 +485,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/snippets.CreateSnippetRequest'
+      - description: CSRF token (required for SessionAuth)
+        in: header
+        name: X-CSRF-Token
+        type: string
       responses:
         "204":
           description: No Content
@@ -576,6 +596,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: CSRF token (required for SessionAuth)
+        in: header
+        name: X-CSRF-Token
+        type: string
       responses:
         "204":
           description: No Content
@@ -620,6 +644,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/httpapi.UserUpdateRequest'
+      - description: CSRF token (required for SessionAuth)
+        in: header
+        name: X-CSRF-Token
+        type: string
       responses:
         "204":
           description: No Content
@@ -647,6 +675,11 @@ paths:
       - users
   /users/me:
     delete:
+      parameters:
+      - description: CSRF token (required for SessionAuth)
+        in: header
+        name: X-CSRF-Token
+        type: string
       responses:
         "204":
           description: No Content
@@ -704,6 +737,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/httpapi.UserUpdateRequest'
+      - description: CSRF token (required for SessionAuth)
+        in: header
+        name: X-CSRF-Token
+        type: string
       responses:
         "204":
           description: No Content
@@ -736,8 +773,8 @@ securityDefinitions:
     name: X-API-Key
     type: apiKey
   SessionAuth:
-    description: HttpOnly session cookie
-    in: cookie
-    name: sniply_session
+    description: Cookie header with sniply_session
+    in: header
+    name: Cookie
     type: apiKey
 swagger: "2.0"

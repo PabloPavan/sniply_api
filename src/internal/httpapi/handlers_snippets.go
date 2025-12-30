@@ -44,6 +44,7 @@ type SnippetsHandler struct {
 // @Security SessionAuth
 // @Security ApiKeyAuth
 // @Param body body snippets.CreateSnippetRequest true "snippet"
+// @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 201 {object} snippets.Snippet
 // @Failure 400 {string} string
 // @Failure 401 {string} string
@@ -287,6 +288,7 @@ func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Security ApiKeyAuth
 // @Param id path string true "snippet id"
 // @Param body body snippets.CreateSnippetRequest true "snippet"
+// @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 204
 // @Failure 400 {string} string
 // @Failure 401 {string} string
@@ -363,6 +365,7 @@ func (h *SnippetsHandler) Update(w http.ResponseWriter, r *http.Request) {
 // @Security SessionAuth
 // @Security ApiKeyAuth
 // @Param id path string true "snippet id"
+// @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 204
 // @Failure 400 {string} string
 // @Failure 401 {string} string

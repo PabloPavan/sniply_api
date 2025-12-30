@@ -78,6 +78,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/httpapi.APIKeyCreateRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -129,6 +135,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -376,6 +388,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/snippets.CreateSnippetRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -497,6 +515,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/snippets.CreateSnippetRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -549,6 +573,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -768,6 +798,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/httpapi.UserUpdateRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -813,6 +849,14 @@ const docTemplate = `{
                     "users"
                 ],
                 "summary": "Delete current user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
+                    }
+                ],
                 "responses": {
                     "204": {
                         "description": "No Content"
@@ -871,6 +915,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/httpapi.UserUpdateRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -923,6 +973,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1175,10 +1231,10 @@ const docTemplate = `{
             "in": "header"
         },
         "SessionAuth": {
-            "description": "HttpOnly session cookie",
+            "description": "Cookie header with sniply_session",
             "type": "apiKey",
-            "name": "sniply_session",
-            "in": "cookie"
+            "name": "Cookie",
+            "in": "header"
         }
     }
 }`

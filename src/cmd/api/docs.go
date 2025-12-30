@@ -7,9 +7,9 @@ package main
 // @description sniply_api HTTP API.
 // @BasePath /v1
 // @securityDefinitions.apikey SessionAuth
-// @in cookie
-// @name sniply_session
-// @description HttpOnly session cookie
+// @in header
+// @name Cookie
+// @description Cookie header with sniply_session
 // @securityDefinitions.apikey ApiKeyAuth
 // @in header
 // @name X-API-Key

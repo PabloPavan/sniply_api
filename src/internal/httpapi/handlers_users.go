@@ -231,6 +231,7 @@ func (h *UsersHandler) Me(w http.ResponseWriter, r *http.Request) {
 // @Security SessionAuth
 // @Security ApiKeyAuth
 // @Param body body UserUpdateRequest true "user"
+// @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 204
 // @Failure 400 {string} string
 // @Failure 401 {string} string
@@ -252,6 +253,7 @@ func (h *UsersHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 // @Tags users
 // @Security SessionAuth
 // @Security ApiKeyAuth
+// @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 204
 // @Failure 401 {string} string
 // @Failure 404 {string} string
@@ -275,6 +277,7 @@ func (h *UsersHandler) DeleteMe(w http.ResponseWriter, r *http.Request) {
 // @Security ApiKeyAuth
 // @Param id path string true "user id"
 // @Param body body UserUpdateRequest true "user"
+// @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 204
 // @Failure 400 {string} string
 // @Failure 401 {string} string
@@ -308,6 +311,7 @@ func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 // @Security SessionAuth
 // @Security ApiKeyAuth
 // @Param id path string true "user id"
+// @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 204
 // @Failure 400 {string} string
 // @Failure 401 {string} string

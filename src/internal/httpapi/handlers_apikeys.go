@@ -53,6 +53,7 @@ type APIKeyResponse struct {
 // @Produce json
 // @Security SessionAuth
 // @Param body body APIKeyCreateRequest true "api key"
+// @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 201 {object} APIKeyCreateResponse
 // @Failure 400 {string} string
 // @Failure 401 {string} string
@@ -154,6 +155,7 @@ func (h *APIKeysHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Security SessionAuth
 // @Param id path string true "api key id"
+// @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 204
 // @Failure 401 {string} string
 // @Failure 404 {string} string

@@ -71,6 +71,12 @@
                         "schema": {
                             "$ref": "#/definitions/httpapi.APIKeyCreateRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -122,6 +128,12 @@
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -369,6 +381,12 @@
                         "schema": {
                             "$ref": "#/definitions/snippets.CreateSnippetRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -490,6 +508,12 @@
                         "schema": {
                             "$ref": "#/definitions/snippets.CreateSnippetRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -542,6 +566,12 @@
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -761,6 +791,12 @@
                         "schema": {
                             "$ref": "#/definitions/httpapi.UserUpdateRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -806,6 +842,14 @@
                     "users"
                 ],
                 "summary": "Delete current user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
+                    }
+                ],
                 "responses": {
                     "204": {
                         "description": "No Content"
@@ -864,6 +908,12 @@
                         "schema": {
                             "$ref": "#/definitions/httpapi.UserUpdateRequest"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -916,6 +966,12 @@
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "CSRF token (required for SessionAuth)",
+                        "name": "X-CSRF-Token",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1168,10 +1224,10 @@
             "in": "header"
         },
         "SessionAuth": {
-            "description": "HttpOnly session cookie",
+            "description": "Cookie header with sniply_session",
             "type": "apiKey",
-            "name": "sniply_session",
-            "in": "cookie"
+            "name": "Cookie",
+            "in": "header"
         }
     }
 }
