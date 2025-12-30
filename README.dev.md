@@ -11,6 +11,7 @@ This README was written to prevent common mistakes and loss of context.
 - [TL;DR (for experienced developers)](#tldr-for-experienced-developers)
 - [Architecture Overview](#architecture-overview)
   - [Architecture Diagram (Mermaid)](#architecture-diagram-mermaid)
+  - [DB schema](#DB-schema)
 - [Repository Structure](#repository-structure)
 - [Prerequisites](#prerequisites)
 - [Command Convention](#command-convention)
@@ -101,6 +102,10 @@ Client -> Traefik -> API
 API -> Redis (sessions, cache, rate limiting)
 API -> PostgreSQL (users, snippets)
 ```
+
+### DB schema
+
+<img width="605" height="632" alt="image" src="https://github.com/user-attachments/assets/31113d07-2eb4-4b28-bed5-12d1ceeb5120" />
 
 ---
 
