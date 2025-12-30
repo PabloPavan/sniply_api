@@ -267,6 +267,10 @@ func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	s, err := h.Repo.List(r.Context(), f)
 	if err != nil {
+		if snippets.IsNotFound(err) {
+			http.Error(w, "not found any snippets", http.StatusNotFound)
+			return
+		}
 		http.Error(w, "failed to list snippets", http.StatusInternalServerError)
 		return
 	}

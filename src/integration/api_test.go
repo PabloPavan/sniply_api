@@ -594,7 +594,7 @@ func TestAPIKeysAuth(t *testing.T) {
 		"X-API-Key": readKey.Token,
 	})
 	_ = res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNotFound {
 		t.Fatalf("api key read list status: %d", res.StatusCode)
 	}
 

@@ -174,9 +174,15 @@ func (r *Repository) List(ctx context.Context, f SnippetFilter) ([]*Snippet, err
 		s.Visibility = Visibility(visibility)
 		snippets = append(snippets, &s)
 	}
-	if err := rows.Err(); err != nil {
+
+	if len(snippets) == 0 {
+		return nil, ErrNotFound
+	}
+
+	if err = rows.Err(); err != nil {
 		return nil, err
 	}
+
 	return snippets, nil
 }
 
