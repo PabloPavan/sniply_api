@@ -7,30 +7,23 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/PabloPavan/sniply_api/internal"
-	"github.com/PabloPavan/sniply_api/internal/identity"
 	"github.com/PabloPavan/sniply_api/internal/telemetry"
 	"github.com/PabloPavan/sniply_api/internal/users"
 	"github.com/go-chi/chi/v5"
-	"go.opentelemetry.io/otel/attribute"
 )
 
-type UsersRepo interface {
-	Create(ctx context.Context, u *users.User) error
-	GetByID(ctx context.Context, id string) (*users.User, error)
+type UsersService interface {
+	Create(ctx context.Context, req users.CreateUserRequest) (*users.User, error)
+	Me(ctx context.Context) (*users.User, error)
 	List(ctx context.Context, f users.UserFilter) ([]*users.User, error)
-	Update(ctx context.Context, u *users.UpdateUserRequest) error
-	Delete(ctx context.Context, id string) error
-}
-type UsersHandler struct {
-	Repo           UsersRepo
-	PasswordHasher func(plain string) (string, error)
+	UpdateSelf(ctx context.Context, input users.UpdateUserInput) error
+	UpdateByID(ctx context.Context, targetID string, input users.UpdateUserInput) error
+	DeleteSelf(ctx context.Context) error
+	DeleteByID(ctx context.Context, targetID string) error
 }
 
-type UserUpdateRequest struct {
-	Email    string  `json:"email,omitempty"`
-	Password string  `json:"password,omitempty"`
-	Role     *string `json:"role,omitempty"`
+type UsersHandler struct {
+	Service UsersService
 }
 
 // Create User
@@ -51,53 +44,9 @@ func (h *UsersHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-	req.Password = strings.TrimSpace(req.Password)
-
-	if req.Email == "" || req.Password == "" {
-		http.Error(w, "email and password are required", http.StatusBadRequest)
-		return
-	}
-	if !strings.Contains(req.Email, "@") {
-		http.Error(w, "invalid email", http.StatusBadRequest)
-		return
-	}
-
-	ctx := r.Context()
-
-	hasher := h.PasswordHasher
-	if hasher == nil {
-		hasher = internal.DefaultPasswordHasher
-	}
-
-	_, span := telemetry.StartSpan(ctx, "users.hash_password",
-		attribute.String("user.email", req.Email),
-	)
-	hash, err := hasher(req.Password)
-	span.End()
+	u, err := h.Service.Create(r.Context(), req)
 	if err != nil {
-		http.Error(w, "failed to process password", http.StatusInternalServerError)
-		return
-	}
-
-	u := &users.User{
-		ID:           "usr_" + internal.RandomHex(12),
-		Email:        req.Email,
-		PasswordHash: hash,
-	}
-
-	createCtx, span := telemetry.StartSpan(ctx, "users.create",
-		attribute.String("user.id", u.ID),
-		attribute.String("user.email", u.Email),
-	)
-	err = h.Repo.Create(createCtx, u)
-	span.End()
-	if err != nil {
-		if users.IsUniqueViolationEmail(err) {
-			http.Error(w, "email already exists", http.StatusConflict)
-			return
-		}
-		http.Error(w, "failed to create user", http.StatusInternalServerError)
+		writeAppError(w, err)
 		return
 	}
 
@@ -134,20 +83,9 @@ func (h *UsersHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string
 // @Router /users [get]
 func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
-	_, ok := identity.UserID(r.Context())
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	if !identity.IsAdmin(r.Context()) {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
-
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 
-	limit := 100
+	limit := 0
 	offset := 0
 
 	if l := strings.TrimSpace(r.URL.Query().Get("limit")); l != "" {
@@ -167,9 +105,9 @@ func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
 		Offset: offset,
 	}
 
-	list, err := h.Repo.List(r.Context(), f)
+	list, err := h.Service.List(r.Context(), f)
 	if err != nil {
-		http.Error(w, "failed to list users", http.StatusInternalServerError)
+		writeAppError(w, err)
 		return
 	}
 
@@ -198,19 +136,9 @@ func (h *UsersHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string
 // @Router /users/me [get]
 func (h *UsersHandler) Me(w http.ResponseWriter, r *http.Request) {
-	userID, ok := identity.UserID(r.Context())
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	u, err := h.Repo.GetByID(r.Context(), userID)
+	u, err := h.Service.Me(r.Context())
 	if err != nil {
-		if users.IsNotFound(err) {
-			http.Error(w, "user not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "failed to load user", http.StatusInternalServerError)
+		writeAppError(w, err)
 		return
 	}
 
@@ -230,7 +158,7 @@ func (h *UsersHandler) Me(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Security SessionAuth
 // @Security ApiKeyAuth
-// @Param body body UserUpdateRequest true "user"
+// @Param body body users.UpdateUserInput true "user"
 // @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 204
 // @Failure 400 {string} string
@@ -239,13 +167,18 @@ func (h *UsersHandler) Me(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string
 // @Router /users/me [put]
 func (h *UsersHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
-	userID, ok := identity.UserID(r.Context())
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	var req users.UpdateUserInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
 
-	h.updateUserByID(w, r, userID)
+	if err := h.Service.UpdateSelf(r.Context(), req); err != nil {
+		writeAppError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // DeleteMe User
@@ -260,13 +193,12 @@ func (h *UsersHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string
 // @Router /users/me [delete]
 func (h *UsersHandler) DeleteMe(w http.ResponseWriter, r *http.Request) {
-	userID, ok := identity.UserID(r.Context())
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	if err := h.Service.DeleteSelf(r.Context()); err != nil {
+		writeAppError(w, err)
 		return
 	}
 
-	h.deleteUserByID(w, r, userID)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Update User
@@ -276,7 +208,7 @@ func (h *UsersHandler) DeleteMe(w http.ResponseWriter, r *http.Request) {
 // @Security SessionAuth
 // @Security ApiKeyAuth
 // @Param id path string true "user id"
-// @Param body body UserUpdateRequest true "user"
+// @Param body body users.UpdateUserInput true "user"
 // @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 204
 // @Failure 400 {string} string
@@ -286,23 +218,19 @@ func (h *UsersHandler) DeleteMe(w http.ResponseWriter, r *http.Request) {
 // @Router /users/{id} [put]
 func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 	targetID := strings.TrimSpace(chi.URLParam(r, "id"))
-	if targetID == "" {
-		http.Error(w, "id is required", http.StatusBadRequest)
+
+	var req users.UpdateUserInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
 
-	requesterID, ok := identity.UserID(r.Context())
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	if err := h.Service.UpdateByID(r.Context(), targetID, req); err != nil {
+		writeAppError(w, err)
 		return
 	}
 
-	if !h.isAllowedToMutateUser(r.Context(), requesterID, targetID) {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
-
-	h.updateUserByID(w, r, targetID)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Delete User
@@ -321,90 +249,9 @@ func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 // @Router /users/{id} [delete]
 func (h *UsersHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	targetID := strings.TrimSpace(chi.URLParam(r, "id"))
-	if targetID == "" {
-		http.Error(w, "id is required", http.StatusBadRequest)
-		return
-	}
 
-	requesterID, ok := identity.UserID(r.Context())
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	if !h.isAllowedToMutateUser(r.Context(), requesterID, targetID) {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
-
-	h.deleteUserByID(w, r, targetID)
-}
-
-func (h *UsersHandler) isAllowedToMutateUser(ctx context.Context, requesterID, targetID string) bool {
-	if requesterID == targetID {
-		return true
-	}
-
-	return identity.IsAdmin(ctx)
-}
-
-func (h *UsersHandler) updateUserByID(w http.ResponseWriter, r *http.Request, targetID string) {
-	ctx := r.Context()
-
-	isAdmin := identity.IsAdmin(ctx)
-
-	var raw UserUpdateRequest
-	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
-		return
-	}
-
-	if raw.Role != nil && !isAdmin {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
-
-	hasher := h.PasswordHasher
-	if hasher == nil {
-		hasher = internal.DefaultPasswordHasher
-	}
-
-	hash, err := hasher(raw.Password)
-	if err != nil {
-		http.Error(w, "failed to process password", http.StatusInternalServerError)
-		return
-	}
-
-	req := users.UpdateUserRequest{
-		ID:           targetID,
-		Email:        raw.Email,
-		PasswordHash: hash,
-	}
-
-	if raw.Role != nil {
-		role, err := users.ParseUserRole(*raw.Role)
-		if err != nil {
-			http.Error(w, "invalid role", http.StatusBadRequest)
-			return
-		}
-		req.Role = role
-	}
-
-	if err := h.Repo.Update(ctx, &req); err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *UsersHandler) deleteUserByID(w http.ResponseWriter, r *http.Request, targetID string) {
-	if err := h.Repo.Delete(r.Context(), targetID); err != nil {
-		if users.IsNotFound(err) {
-			http.Error(w, "user not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "failed to delete user", http.StatusInternalServerError)
+	if err := h.Service.DeleteByID(r.Context(), targetID); err != nil {
+		writeAppError(w, err)
 		return
 	}
 

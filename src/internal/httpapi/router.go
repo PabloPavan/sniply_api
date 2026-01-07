@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	_ "github.com/PabloPavan/sniply_api/docs"
-	"github.com/PabloPavan/sniply_api/internal/session"
 	"github.com/PabloPavan/sniply_api/internal/telemetry"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -12,12 +11,12 @@ import (
 )
 
 type App struct {
-	Health   *HealthHandler
-	Snippets *SnippetsHandler
-	Users    *UsersHandler
-	Auth     *AuthHandler
-	APIKeys  *APIKeysHandler
-	APIKeyDB APIKeyStore
+	Health        *HealthHandler
+	Snippets      *SnippetsHandler
+	Users         *UsersHandler
+	Auth          *AuthHandler
+	APIKeys       *APIKeysHandler
+	Authenticator Authenticator
 }
 
 func NewRouter(app *App) http.Handler {
@@ -44,7 +43,11 @@ func NewRouter(app *App) http.Handler {
 			r.Post("/logout", app.Auth.Logout)
 
 			r.Group(func(r chi.Router) {
-				r.Use(session.Middleware(app.Auth.Sessions, app.Auth.Cookie))
+				r.Use(AuthMiddleware(app.Authenticator, AuthOptions{
+					AllowSession: true,
+					AllowAPIKey:  false,
+					Cookie:       app.Auth.Cookie,
+				}))
 				r.Post("/api-keys", app.APIKeys.Create)
 				r.Get("/api-keys", app.APIKeys.List)
 				r.Delete("/api-keys/{id}", app.APIKeys.Revoke)
@@ -54,7 +57,11 @@ func NewRouter(app *App) http.Handler {
 		r.Route("/snippets", func(r chi.Router) {
 			// Protected
 			r.Group(func(r chi.Router) {
-				r.Use(AuthMiddleware(app.Auth.Sessions, app.Auth.Cookie, app.APIKeyDB))
+				r.Use(AuthMiddleware(app.Authenticator, AuthOptions{
+					AllowSession: true,
+					AllowAPIKey:  true,
+					Cookie:       app.Auth.Cookie,
+				}))
 				r.Post("/", app.Snippets.Create)
 				r.Get("/", app.Snippets.List)
 				r.Get("/{id}", app.Snippets.GetByID)
@@ -69,7 +76,11 @@ func NewRouter(app *App) http.Handler {
 
 			// Protected
 			r.Group(func(r chi.Router) {
-				r.Use(AuthMiddleware(app.Auth.Sessions, app.Auth.Cookie, app.APIKeyDB))
+				r.Use(AuthMiddleware(app.Authenticator, AuthOptions{
+					AllowSession: true,
+					AllowAPIKey:  true,
+					Cookie:       app.Auth.Cookie,
+				}))
 
 				// Self endpoints
 				r.Get("/me", app.Users.Me)

@@ -15,6 +15,7 @@ import (
 
 	"github.com/PabloPavan/sniply_api/internal"
 	"github.com/PabloPavan/sniply_api/internal/apikeys"
+	"github.com/PabloPavan/sniply_api/internal/auth"
 	"github.com/PabloPavan/sniply_api/internal/db"
 	"github.com/PabloPavan/sniply_api/internal/httpapi"
 	"github.com/PabloPavan/sniply_api/internal/session"
@@ -60,17 +61,25 @@ func newTestEnv(t *testing.T) *testEnv {
 		Path: "/",
 	}
 
+	usersService := &users.Service{Store: usrRepo}
+	snippetsService := &snippets.Service{Store: snRepo, Users: usrRepo}
+	apiKeysService := &apikeys.Service{Store: apiKeyRepo}
+	authService := &auth.Service{
+		Users:    usrRepo,
+		Sessions: sessionManager,
+		APIKeys:  apiKeyRepo,
+	}
+
 	app := &httpapi.App{
 		Health:   &httpapi.HealthHandler{DB: pool.Pool},
-		Snippets: &httpapi.SnippetsHandler{Repo: snRepo, RepoUser: usrRepo},
-		Users:    &httpapi.UsersHandler{Repo: usrRepo},
+		Snippets: &httpapi.SnippetsHandler{Service: snippetsService},
+		Users:    &httpapi.UsersHandler{Service: usersService},
 		Auth: &httpapi.AuthHandler{
-			Users:    usrRepo,
-			Sessions: sessionManager,
-			Cookie:   cookieCfg,
+			Service: authService,
+			Cookie:  cookieCfg,
 		},
-		APIKeys:  &httpapi.APIKeysHandler{Repo: apiKeyRepo},
-		APIKeyDB: apiKeyRepo,
+		APIKeys:       &httpapi.APIKeysHandler{Service: apiKeysService},
+		Authenticator: authService,
 	}
 
 	srv := httptest.NewServer(httpapi.NewRouter(app))

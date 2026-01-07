@@ -2,91 +2,71 @@ package httpapi
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 
-	"github.com/PabloPavan/sniply_api/internal/apikeys"
+	"github.com/PabloPavan/sniply_api/internal/auth"
 	"github.com/PabloPavan/sniply_api/internal/identity"
 	"github.com/PabloPavan/sniply_api/internal/session"
 )
 
-type APIKeyStore interface {
-	GetByTokenHash(ctx context.Context, hash string) (*apikeys.Key, error)
+type Authenticator interface {
+	AuthenticateAPIKey(ctx context.Context, token string, method string) (auth.Principal, error)
+	AuthenticateSession(ctx context.Context, sessionID, csrfToken, method string) (auth.SessionInfo, bool, error)
 }
 
-func AuthMiddleware(mgr *session.Manager, cookieCfg session.CookieConfig, apiKeyStore APIKeyStore) func(http.Handler) http.Handler {
+type AuthOptions struct {
+	AllowAPIKey  bool
+	AllowSession bool
+	Cookie       session.CookieConfig
+}
+
+func AuthMiddleware(authenticator Authenticator, opts AuthOptions) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if token := apiKeyFromRequest(r); token != "" {
-				if apiKeyStore == nil {
-					http.Error(w, "unauthorized", http.StatusUnauthorized)
-					return
-				}
-
-				key, err := apiKeyStore.GetByTokenHash(r.Context(), apikeys.HashToken(token))
-				if err != nil {
-					if apikeys.IsNotFound(err) {
-						http.Error(w, "unauthorized", http.StatusUnauthorized)
-						return
-					}
-					http.Error(w, "failed to authenticate", http.StatusInternalServerError)
-					return
-				}
-
-				if !key.Scope.AllowsMethod(r.Method) {
-					http.Error(w, "forbidden", http.StatusForbidden)
-					return
-				}
-
-				ctx := identity.WithUser(r.Context(), key.UserID, key.UserRole)
-				next.ServeHTTP(w, r.WithContext(ctx))
-				return
-			}
-
-			if mgr == nil {
+			if authenticator == nil {
 				http.Error(w, "auth not configured", http.StatusInternalServerError)
 				return
 			}
 
-			name := cookieCfg.Name
-			if name == "" {
-				name = "sniply_session"
+			if opts.AllowAPIKey {
+				if token := apiKeyFromRequest(r); token != "" {
+					principal, err := authenticator.AuthenticateAPIKey(r.Context(), token, r.Method)
+					if err != nil {
+						writeAppError(w, err)
+						return
+					}
+
+					ctx := identity.WithUser(r.Context(), principal.UserID, principal.Role)
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
 			}
 
-			reqCookie, err := r.Cookie(name)
-			if err != nil || reqCookie.Value == "" {
-				http.Error(w, "missing session", http.StatusUnauthorized)
-				return
-			}
-
-			sess, err := mgr.Get(r.Context(), reqCookie.Value)
-			if err != nil {
+			if !opts.AllowSession {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 
-			if requiresCSRFToken(r.Method) {
-				token := r.Header.Get("X-CSRF-Token")
-				if token == "" || token != sess.CSRFToken {
-					http.Error(w, "forbidden", http.StatusForbidden)
-					return
-				}
+			name := opts.Cookie.Name
+			if name == "" {
+				name = "sniply_session"
 			}
 
-			var refreshed bool
-			sess, refreshed, err = mgr.Refresh(r.Context(), sess)
+			sessionID := ""
+			if reqCookie, err := r.Cookie(name); err == nil {
+				sessionID = reqCookie.Value
+			}
+
+			csrfToken := r.Header.Get("X-CSRF-Token")
+			sess, refreshed, err := authenticator.AuthenticateSession(r.Context(), sessionID, csrfToken, r.Method)
 			if err != nil {
-				if errors.Is(err, session.ErrNotFound) {
-					http.Error(w, "unauthorized", http.StatusUnauthorized)
-					return
-				}
-				http.Error(w, "failed to refresh session", http.StatusInternalServerError)
+				writeAppError(w, err)
 				return
 			}
 
-			if refreshed && sess != nil {
-				cookieCfg.Write(w, sess.ID, sess.ExpiresAt)
+			if refreshed {
+				opts.Cookie.Write(w, sess.ID, sess.ExpiresAt)
 			}
 
 			ctx := identity.WithUser(r.Context(), sess.UserID, sess.Role)
@@ -109,13 +89,4 @@ func apiKeyFromRequest(r *http.Request) string {
 		return strings.TrimSpace(parts[1])
 	}
 	return ""
-}
-
-func requiresCSRFToken(method string) bool {
-	switch method {
-	case http.MethodGet, http.MethodHead, http.MethodOptions:
-		return false
-	default:
-		return true
-	}
 }

@@ -4,36 +4,24 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/url"
-	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/PabloPavan/sniply_api/internal"
-	"github.com/PabloPavan/sniply_api/internal/identity"
 	"github.com/PabloPavan/sniply_api/internal/snippets"
-	"github.com/PabloPavan/sniply_api/internal/telemetry"
-	"github.com/PabloPavan/sniply_api/internal/users"
-	"go.opentelemetry.io/otel/attribute"
 )
 
-type SnippetsRepo interface {
-	Create(ctx context.Context, s *snippets.Snippet) error
-	GetByIDPublicOnly(ctx context.Context, id string) (*snippets.Snippet, error)
-	List(ctx context.Context, f snippets.SnippetFilter) ([]*snippets.Snippet, error)
-	Update(ctx context.Context, s *snippets.Snippet) error
-	Delete(ctx context.Context, id string, creatorID string) error
+type SnippetsService interface {
+	Create(ctx context.Context, req snippets.CreateSnippetRequest) (*snippets.Snippet, error)
+	GetByID(ctx context.Context, id string) (*snippets.Snippet, error)
+	List(ctx context.Context, input snippets.ListInput) ([]*snippets.Snippet, error)
+	Update(ctx context.Context, id string, req snippets.CreateSnippetRequest) (*snippets.Snippet, error)
+	Delete(ctx context.Context, id string) error
 }
 
 type SnippetsHandler struct {
-	Repo         SnippetsRepo
-	RepoUser     UsersRepo
-	Cache        snippets.Cache
-	CacheTTL     time.Duration
-	ListCacheTTL time.Duration
+	Service SnippetsService
 }
 
 // Create Snippet
@@ -52,77 +40,21 @@ type SnippetsHandler struct {
 // @Failure 500 {string} string
 // @Router /snippets [post]
 func (h *SnippetsHandler) Create(w http.ResponseWriter, r *http.Request) {
-	creatorID, ok := identity.UserID(r.Context())
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	var req snippets.CreateSnippetRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
 
-	req.Name = strings.TrimSpace(req.Name)
-	req.Content = strings.TrimSpace(req.Content)
-	req.Language = strings.TrimSpace(req.Language)
-
-	if req.Name == "" || req.Content == "" {
-		http.Error(w, "name and content are required", http.StatusBadRequest)
-		return
-	}
-	if req.Language == "" {
-		req.Language = "txt"
-	}
-	if req.Tags == nil {
-		req.Tags = []string{}
-	}
-	if req.Visibility == "" {
-		req.Visibility = snippets.VisibilityPrivate
-	}
-
-	ctx := r.Context()
-
-	s := &snippets.Snippet{
-		ID:         "snp_" + internal.RandomHex(12),
-		Name:       req.Name,
-		Content:    req.Content,
-		Language:   req.Language,
-		Tags:       req.Tags,
-		Visibility: req.Visibility,
-		CreatorID:  creatorID,
-	}
-
-	createCtx, span := telemetry.StartSpan(ctx, "snippets.create",
-		attribute.String("snippet.id", s.ID),
-		attribute.String("snippet.language", s.Language),
-		attribute.Int("snippet.size_bytes", len(s.Content)),
-		attribute.String("user.id", creatorID),
-	)
-	err := h.Repo.Create(createCtx, s)
-	span.End()
+	snippet, err := h.Service.Create(r.Context(), req)
 	if err != nil {
-		if snippets.IsUniqueViolationID(err) {
-			http.Error(w, "snippet already exists", http.StatusConflict)
-			return
-		}
-
-		http.Error(w, "failed to create snippet", http.StatusInternalServerError)
+		writeAppError(w, err)
 		return
 	}
-
-	telemetry.LogInfo(r.Context(), "snippet created",
-		telemetry.LogString("event", "snippet.created"),
-		telemetry.LogString("snippet.id", s.ID),
-		telemetry.LogString("snippet.language", s.Language),
-		telemetry.LogInt("snippet.size_bytes", len(s.Content)),
-		telemetry.LogString("user.id", creatorID),
-	)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(s)
+	_ = json.NewEncoder(w).Encode(snippet)
 }
 
 // GetByID Snippet
@@ -139,35 +71,15 @@ func (h *SnippetsHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Router /snippets/{id} [get]
 func (h *SnippetsHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(chi.URLParam(r, "id"))
-	if id == "" {
-		http.Error(w, "id is required", http.StatusBadRequest)
-		return
-	}
 
-	if h.Cache != nil {
-		if cached, ok, err := h.Cache.GetByID(r.Context(), id); err == nil && ok {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(cached)
-			return
-		}
-	}
-
-	s, err := h.Repo.GetByIDPublicOnly(r.Context(), id)
+	snippet, err := h.Service.GetByID(r.Context(), id)
 	if err != nil {
-		if snippets.IsNotFound(err) {
-			http.Error(w, "not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "failed to load snippet", http.StatusInternalServerError)
+		writeAppError(w, err)
 		return
-	}
-
-	if h.Cache != nil && h.CacheTTL > 0 {
-		_ = h.Cache.SetByID(r.Context(), s, h.CacheTTL)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(s)
+	_ = json.NewEncoder(w).Encode(snippet)
 }
 
 // List Snippets
@@ -194,46 +106,10 @@ func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 	creator := strings.TrimSpace(r.URL.Query().Get("creator"))
 	language := strings.TrimSpace(r.URL.Query().Get("language"))
 	tag := strings.TrimSpace(r.URL.Query().Get("tag"))
-	var tags []string
-	if tag != "" {
-		tags = []string{tag}
-	}
 
-	if creator != "" {
-		_, err := h.RepoUser.GetByID(r.Context(), creator)
-		if err != nil {
-			if users.IsNotFound(err) {
-				http.Error(w, "creator not found", http.StatusBadRequest)
-				return
-			}
-			http.Error(w, "failed to load creator", http.StatusInternalServerError)
-			return
-		}
-	}
+	visibility := snippets.Visibility(strings.TrimSpace(r.URL.Query().Get("visibility")))
 
-	visibilityStr := strings.TrimSpace(r.URL.Query().Get("visibility"))
-	visibility := snippets.VisibilityPublic
-	if visibilityStr == string(snippets.VisibilityPrivate) {
-		visibility = snippets.VisibilityPrivate
-		if creator == "" {
-			http.Error(w, "creator is required", http.StatusBadRequest)
-			return
-		}
-
-		requesterID, ok := identity.UserID(r.Context())
-		if !ok {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		isAdmin := identity.IsAdmin(r.Context())
-		if !isAdmin && requesterID != creator {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-	}
-
-	limit := 100
+	limit := 0
 	offset := 0
 	if l := strings.TrimSpace(r.URL.Query().Get("limit")); l != "" {
 		if v, err := strconv.Atoi(l); err == nil && v > 0 {
@@ -246,42 +122,24 @@ func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	f := snippets.SnippetFilter{
+	input := snippets.ListInput{
 		Query:      q,
 		Creator:    creator,
 		Language:   language,
-		Tags:       tags,
+		Tag:        tag,
 		Visibility: visibility,
 		Limit:      limit,
 		Offset:     offset,
 	}
 
-	if h.Cache != nil && visibility == snippets.VisibilityPublic {
-		cacheKey := listCacheKey(f)
-		if cached, ok, err := h.Cache.GetList(r.Context(), cacheKey); err == nil && ok {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(cached)
-			return
-		}
-	}
-
-	s, err := h.Repo.List(r.Context(), f)
+	list, err := h.Service.List(r.Context(), input)
 	if err != nil {
-		if snippets.IsNotFound(err) {
-			http.Error(w, "not found any snippets", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "failed to list snippets", http.StatusInternalServerError)
+		writeAppError(w, err)
 		return
 	}
 
-	if h.Cache != nil && visibility == snippets.VisibilityPublic && h.ListCacheTTL > 0 {
-		cacheKey := listCacheKey(f)
-		_ = h.Cache.SetList(r.Context(), cacheKey, s, h.ListCacheTTL)
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(s)
+	_ = json.NewEncoder(w).Encode(list)
 }
 
 // Update Snippet
@@ -300,17 +158,7 @@ func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string
 // @Router /snippets/{id} [put]
 func (h *SnippetsHandler) Update(w http.ResponseWriter, r *http.Request) {
-	creatorID, ok := identity.UserID(r.Context())
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	id := strings.TrimSpace(chi.URLParam(r, "id"))
-	if id == "" {
-		http.Error(w, "id is required", http.StatusBadRequest)
-		return
-	}
 
 	var req snippets.CreateSnippetRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -318,49 +166,14 @@ func (h *SnippetsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.Name = strings.TrimSpace(req.Name)
-	req.Content = strings.TrimSpace(req.Content)
-	req.Language = strings.TrimSpace(req.Language)
-
-	if req.Name == "" || req.Content == "" {
-		http.Error(w, "name and content are required", http.StatusBadRequest)
+	snippet, err := h.Service.Update(r.Context(), id, req)
+	if err != nil {
+		writeAppError(w, err)
 		return
-	}
-	if req.Language == "" {
-		req.Language = "txt"
-	}
-	if req.Tags == nil {
-		req.Tags = []string{}
-	}
-	if req.Visibility == "" {
-		req.Visibility = snippets.VisibilityPrivate
-	}
-
-	s := &snippets.Snippet{
-		ID:         id,
-		Name:       req.Name,
-		Content:    req.Content,
-		Language:   req.Language,
-		Tags:       req.Tags,
-		Visibility: req.Visibility,
-		CreatorID:  creatorID,
-	}
-
-	if err := h.Repo.Update(r.Context(), s); err != nil {
-		if snippets.IsNotFound(err) {
-			http.Error(w, "not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "failed to update snippet", http.StatusInternalServerError)
-		return
-	}
-
-	if h.Cache != nil {
-		_ = h.Cache.DeleteByID(r.Context(), id)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(s)
+	_ = json.NewEncoder(w).Encode(snippet)
 }
 
 // Delete Snippet
@@ -377,58 +190,12 @@ func (h *SnippetsHandler) Update(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string
 // @Router /snippets/{id} [delete]
 func (h *SnippetsHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	creatorID, ok := identity.UserID(r.Context())
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	id := strings.TrimSpace(chi.URLParam(r, "id"))
-	if id == "" {
-		http.Error(w, "id is required", http.StatusBadRequest)
-		return
-	}
 
-	if err := h.Repo.Delete(r.Context(), id, creatorID); err != nil {
-		if snippets.IsNotFound(err) {
-			http.Error(w, "not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "failed to delete snippet", http.StatusInternalServerError)
+	if err := h.Service.Delete(r.Context(), id); err != nil {
+		writeAppError(w, err)
 		return
-	}
-
-	if h.Cache != nil {
-		_ = h.Cache.DeleteByID(r.Context(), id)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func listCacheKey(f snippets.SnippetFilter) string {
-	v := url.Values{}
-	if f.Query != "" {
-		v.Set("q", f.Query)
-	}
-	if f.Creator != "" {
-		v.Set("creator", f.Creator)
-	}
-	if f.Language != "" {
-		v.Set("language", f.Language)
-	}
-	if len(f.Tags) > 0 {
-		tags := append([]string(nil), f.Tags...)
-		sort.Strings(tags)
-		v.Set("tags", strings.Join(tags, ","))
-	}
-	if f.Visibility != "" {
-		v.Set("visibility", string(f.Visibility))
-	}
-	if f.Limit > 0 {
-		v.Set("limit", strconv.Itoa(f.Limit))
-	}
-	if f.Offset > 0 {
-		v.Set("offset", strconv.Itoa(f.Offset))
-	}
-	return v.Encode()
 }

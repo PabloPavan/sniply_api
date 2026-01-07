@@ -10,6 +10,7 @@ import (
 
 	"github.com/PabloPavan/sniply_api/internal"
 	"github.com/PabloPavan/sniply_api/internal/apikeys"
+	"github.com/PabloPavan/sniply_api/internal/auth"
 	"github.com/PabloPavan/sniply_api/internal/db"
 	"github.com/PabloPavan/sniply_api/internal/httpapi"
 	"github.com/PabloPavan/sniply_api/internal/ratelimit"
@@ -89,24 +90,34 @@ func main() {
 	snippetsCache := snippets.NewRedisCache(redisClient, "sniply:cache:")
 	telemetry.InitAppMetrics("sniply-api", d.Pool, redisClient, sessionPrefix)
 
+	usersService := &users.Service{Store: usrRepo}
+	snippetsService := &snippets.Service{
+		Store:        snRepo,
+		Users:        usrRepo,
+		Cache:        snippetsCache,
+		CacheTTL:     cacheTTL,
+		ListCacheTTL: listCacheTTL,
+	}
+	apiKeysService := &apikeys.Service{Store: apiKeysRepo}
+	authService := &auth.Service{
+		Users:        usrRepo,
+		Sessions:     sessionManager,
+		APIKeys:      apiKeysRepo,
+		LoginLimiter: loginLimiter,
+	}
+
 	app := &httpapi.App{
 		Health: &httpapi.HealthHandler{DB: d.Pool},
 		Snippets: &httpapi.SnippetsHandler{
-			Repo:         snRepo,
-			RepoUser:     usrRepo,
-			Cache:        snippetsCache,
-			CacheTTL:     cacheTTL,
-			ListCacheTTL: listCacheTTL,
+			Service: snippetsService,
 		},
-		Users: &httpapi.UsersHandler{Repo: usrRepo},
+		Users: &httpapi.UsersHandler{Service: usersService},
 		Auth: &httpapi.AuthHandler{
-			Users:        usrRepo,
-			Sessions:     sessionManager,
-			Cookie:       cookie,
-			LoginLimiter: loginLimiter,
+			Service: authService,
+			Cookie:  cookie,
 		},
-		APIKeys:  &httpapi.APIKeysHandler{Repo: apiKeysRepo},
-		APIKeyDB: apiKeysRepo,
+		APIKeys:       &httpapi.APIKeysHandler{Service: apiKeysService},
+		Authenticator: authService,
 	}
 
 	srv := &http.Server{

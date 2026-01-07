@@ -7,25 +7,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/PabloPavan/sniply_api/internal"
 	"github.com/PabloPavan/sniply_api/internal/apikeys"
-	"github.com/PabloPavan/sniply_api/internal/identity"
 	"github.com/go-chi/chi/v5"
 )
 
-type APIKeysRepo interface {
-	Create(ctx context.Context, k *apikeys.Key) error
-	ListByUser(ctx context.Context, userID string) ([]*apikeys.Key, error)
-	Revoke(ctx context.Context, id, userID string) (bool, error)
+type APIKeysService interface {
+	Create(ctx context.Context, input apikeys.CreateInput) (*apikeys.Key, string, error)
+	List(ctx context.Context) ([]*apikeys.Key, error)
+	Revoke(ctx context.Context, id string) error
 }
 
 type APIKeysHandler struct {
-	Repo APIKeysRepo
-}
-
-type APIKeyCreateRequest struct {
-	Name  string `json:"name"`
-	Scope string `json:"scope"`
+	Service APIKeysService
 }
 
 type APIKeyCreateResponse struct {
@@ -52,7 +45,7 @@ type APIKeyResponse struct {
 // @Accept json
 // @Produce json
 // @Security SessionAuth
-// @Param body body APIKeyCreateRequest true "api key"
+// @Param body body apikeys.CreateInput true "api key"
 // @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 201 {object} APIKeyCreateResponse
 // @Failure 400 {string} string
@@ -60,40 +53,15 @@ type APIKeyResponse struct {
 // @Failure 500 {string} string
 // @Router /auth/api-keys [post]
 func (h *APIKeysHandler) Create(w http.ResponseWriter, r *http.Request) {
-	userID, ok := identity.UserID(r.Context())
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var req APIKeyCreateRequest
+	var req apikeys.CreateInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
 
-	req.Name = strings.TrimSpace(req.Name)
-	scope := apikeys.Scope(strings.TrimSpace(req.Scope))
-	if scope == "" {
-		scope = apikeys.ScopeReadWrite
-	}
-	if !scope.Valid() {
-		http.Error(w, "invalid scope", http.StatusBadRequest)
-		return
-	}
-
-	token := apikeys.GenerateToken()
-	key := &apikeys.Key{
-		ID:          "key_" + internal.RandomHex(12),
-		UserID:      userID,
-		Name:        req.Name,
-		Scope:       scope,
-		TokenHash:   apikeys.HashToken(token),
-		TokenPrefix: apikeys.TokenPrefix(token),
-	}
-
-	if err := h.Repo.Create(r.Context(), key); err != nil {
-		http.Error(w, "failed to create api key", http.StatusInternalServerError)
+	key, token, err := h.Service.Create(r.Context(), req)
+	if err != nil {
+		writeAppError(w, err)
 		return
 	}
 
@@ -121,15 +89,9 @@ func (h *APIKeysHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string
 // @Router /auth/api-keys [get]
 func (h *APIKeysHandler) List(w http.ResponseWriter, r *http.Request) {
-	userID, ok := identity.UserID(r.Context())
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	keys, err := h.Repo.ListByUser(r.Context(), userID)
+	keys, err := h.Service.List(r.Context())
 	if err != nil {
-		http.Error(w, "failed to list api keys", http.StatusInternalServerError)
+		writeAppError(w, err)
 		return
 	}
 
@@ -162,25 +124,10 @@ func (h *APIKeysHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string
 // @Router /auth/api-keys/{id} [delete]
 func (h *APIKeysHandler) Revoke(w http.ResponseWriter, r *http.Request) {
-	userID, ok := identity.UserID(r.Context())
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	id := strings.TrimSpace(chi.URLParam(r, "id"))
-	if id == "" {
-		http.Error(w, "invalid id", http.StatusBadRequest)
-		return
-	}
 
-	ok, err := h.Repo.Revoke(r.Context(), id, userID)
-	if err != nil {
-		http.Error(w, "failed to revoke api key", http.StatusInternalServerError)
-		return
-	}
-	if !ok {
-		http.Error(w, "api key not found", http.StatusNotFound)
+	if err := h.Service.Revoke(r.Context(), id); err != nil {
+		writeAppError(w, err)
 		return
 	}
 
