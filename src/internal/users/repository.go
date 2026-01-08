@@ -105,14 +105,8 @@ func (r *Repository) List(ctx context.Context, f UserFilter) ([]*User, error) {
 		q = "%" + strings.ReplaceAll(f.Query, "%", "\\%") + "%"
 	}
 
-	limit := 100
-	if f.Limit > 0 && f.Limit <= 1000 {
-		limit = f.Limit
-	}
-	offset := 0
-	if f.Offset > 0 {
-		offset = f.Offset
-	}
+	limit := f.Limit
+	offset := f.Offset
 
 	rows, err := r.base.Q().Query(ctx, sqlUserList, q, limit, offset)
 	if err != nil {

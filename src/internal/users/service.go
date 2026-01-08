@@ -122,7 +122,7 @@ func (s *Service) List(ctx context.Context, f UserFilter) ([]*User, error) {
 
 	limit := 100
 	if f.Limit > 0 {
-		limit = f.Limit
+		limit = min(f.Limit, 1000)
 	}
 	offset := 0
 	if f.Offset > 0 {

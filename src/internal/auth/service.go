@@ -163,6 +163,9 @@ func (s *Service) AuthenticateAPIKey(ctx context.Context, token string, method s
 		}
 		return Principal{}, apperrors.New(apperrors.KindInternal, "failed to authenticate")
 	}
+	if key.RevokedAt != nil {
+		return Principal{}, apperrors.New(apperrors.KindUnauthorized, "unauthorized")
+	}
 
 	if !key.Scope.AllowsMethod(method) {
 		return Principal{}, apperrors.New(apperrors.KindForbidden, "forbidden")

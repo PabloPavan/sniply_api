@@ -12,7 +12,8 @@ import (
 type Store interface {
 	Create(ctx context.Context, k *Key) error
 	ListByUser(ctx context.Context, userID string) ([]*Key, error)
-	Revoke(ctx context.Context, id, userID string) (bool, error)
+	GetByID(ctx context.Context, id string) (*Key, error)
+	Revoke(ctx context.Context, id string) (bool, error)
 	GetByTokenHash(ctx context.Context, hash string) (*Key, error)
 }
 
@@ -111,11 +112,22 @@ func (s *Service) Revoke(ctx context.Context, id string) error {
 		return apperrors.New(apperrors.KindInvalidInput, "invalid id")
 	}
 
-	ok, err := s.Store.Revoke(ctx, id, userID)
+	key, err := s.Store.GetByID(ctx, id)
+	if err != nil {
+		if IsNotFound(err) {
+			return apperrors.New(apperrors.KindNotFound, "api key not found")
+		}
+		return apperrors.New(apperrors.KindInternal, "failed to load api key")
+	}
+	if key.UserID != userID || key.RevokedAt != nil {
+		return apperrors.New(apperrors.KindNotFound, "api key not found")
+	}
+
+	revoked, err := s.Store.Revoke(ctx, id)
 	if err != nil {
 		return apperrors.New(apperrors.KindInternal, "failed to revoke api key")
 	}
-	if !ok {
+	if !revoked {
 		return apperrors.New(apperrors.KindNotFound, "api key not found")
 	}
 	return nil

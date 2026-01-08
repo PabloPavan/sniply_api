@@ -12,7 +12,8 @@ import (
 type storeStub struct {
 	createFn func(ctx context.Context, k *Key) error
 	listFn   func(ctx context.Context, userID string) ([]*Key, error)
-	revokeFn func(ctx context.Context, id, userID string) (bool, error)
+	getIDFn  func(ctx context.Context, id string) (*Key, error)
+	revokeFn func(ctx context.Context, id string) (bool, error)
 	getFn    func(ctx context.Context, hash string) (*Key, error)
 }
 
@@ -30,9 +31,16 @@ func (s *storeStub) ListByUser(ctx context.Context, userID string) ([]*Key, erro
 	return nil, nil
 }
 
-func (s *storeStub) Revoke(ctx context.Context, id, userID string) (bool, error) {
+func (s *storeStub) GetByID(ctx context.Context, id string) (*Key, error) {
+	if s.getIDFn != nil {
+		return s.getIDFn(ctx, id)
+	}
+	return nil, ErrNotFound
+}
+
+func (s *storeStub) Revoke(ctx context.Context, id string) (bool, error) {
 	if s.revokeFn != nil {
-		return s.revokeFn(ctx, id, userID)
+		return s.revokeFn(ctx, id)
 	}
 	return false, nil
 }
@@ -89,8 +97,8 @@ func TestServiceRevokeNotFound(t *testing.T) {
 	store := &storeStub{}
 	svc := &Service{Store: store}
 
-	store.revokeFn = func(ctx context.Context, id, userID string) (bool, error) {
-		return false, nil
+	store.getIDFn = func(ctx context.Context, id string) (*Key, error) {
+		return nil, ErrNotFound
 	}
 
 	ctx := identity.WithUser(context.Background(), "usr_1", "member")

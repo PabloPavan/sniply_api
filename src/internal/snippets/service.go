@@ -16,10 +16,10 @@ import (
 
 type Store interface {
 	Create(ctx context.Context, s *Snippet) error
-	GetByIDPublicOnly(ctx context.Context, id string) (*Snippet, error)
+	GetByID(ctx context.Context, id string) (*Snippet, error)
 	List(ctx context.Context, f SnippetFilter) ([]*Snippet, error)
 	Update(ctx context.Context, s *Snippet) error
-	Delete(ctx context.Context, id string, creatorID string) error
+	Delete(ctx context.Context, id string) error
 }
 
 type UserLookup interface {
@@ -114,12 +114,15 @@ func (s *Service) GetByID(ctx context.Context, id string) (*Snippet, error) {
 		}
 	}
 
-	snippet, err := s.Store.GetByIDPublicOnly(ctx, id)
+	snippet, err := s.Store.GetByID(ctx, id)
 	if err != nil {
 		if IsNotFound(err) {
 			return nil, apperrors.New(apperrors.KindNotFound, "not found")
 		}
 		return nil, apperrors.New(apperrors.KindInternal, "failed to load snippet")
+	}
+	if snippet.Visibility != VisibilityPublic {
+		return nil, apperrors.New(apperrors.KindNotFound, "not found")
 	}
 
 	if s.Cache != nil && s.CacheTTL > 0 {
@@ -171,7 +174,7 @@ func (s *Service) List(ctx context.Context, input ListInput) ([]*Snippet, error)
 
 	limit := 100
 	if input.Limit > 0 {
-		limit = input.Limit
+		limit = min(input.Limit, 1000)
 	}
 	offset := 0
 	if input.Offset > 0 {
@@ -202,10 +205,10 @@ func (s *Service) List(ctx context.Context, input ListInput) ([]*Snippet, error)
 
 	list, err := s.Store.List(ctx, filter)
 	if err != nil {
-		if IsNotFound(err) {
-			return nil, apperrors.New(apperrors.KindNotFound, "not found any snippets")
-		}
 		return nil, apperrors.New(apperrors.KindInternal, "failed to list snippets")
+	}
+	if len(list) == 0 {
+		return nil, apperrors.New(apperrors.KindNotFound, "not found any snippets")
 	}
 
 	if s.Cache != nil && visibility == VisibilityPublic && s.ListCacheTTL > 0 {
@@ -284,7 +287,18 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 		return apperrors.New(apperrors.KindInvalidInput, "id is required")
 	}
 
-	if err := s.Store.Delete(ctx, id, requesterID); err != nil {
+	snippet, err := s.Store.GetByID(ctx, id)
+	if err != nil {
+		if IsNotFound(err) {
+			return apperrors.New(apperrors.KindNotFound, "not found")
+		}
+		return apperrors.New(apperrors.KindInternal, "failed to load snippet")
+	}
+	if snippet.CreatorID != requesterID {
+		return apperrors.New(apperrors.KindNotFound, "not found")
+	}
+
+	if err := s.Store.Delete(ctx, id); err != nil {
 		if IsNotFound(err) {
 			return apperrors.New(apperrors.KindNotFound, "not found")
 		}

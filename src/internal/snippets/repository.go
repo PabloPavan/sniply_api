@@ -23,7 +23,7 @@ const (
 
 	sqlSnippetSelectByID = `SELECT id, name, content, language, tags, visibility, creator_id, created_at, updated_at
 		FROM snippets
-		WHERE id = $1 AND visibility = 'public'
+		WHERE id = $1
 		LIMIT 1;`
 
 	sqlSnippetListBase = `SELECT id, name, content, language, tags, visibility, creator_id, created_at, updated_at
@@ -38,7 +38,7 @@ const (
 		RETURNING updated_at;`
 
 	sqlSnippetDelete = `DELETE FROM snippets 
-		WHERE id = $1 AND creator_id = $2;`
+		WHERE id = $1;`
 )
 
 func (r *Repository) Create(ctx context.Context, s *Snippet) error {
@@ -66,7 +66,7 @@ func (r *Repository) Create(ctx context.Context, s *Snippet) error {
 	return nil
 }
 
-func (r *Repository) GetByIDPublicOnly(ctx context.Context, id string) (*Snippet, error) {
+func (r *Repository) GetByID(ctx context.Context, id string) (*Snippet, error) {
 
 	ctx, cancel := r.base.WithTimeout(ctx)
 	defer cancel()
@@ -130,12 +130,8 @@ func (r *Repository) List(ctx context.Context, f SnippetFilter) ([]*Snippet, err
 		argPos++
 	}
 
-	limit := 100
-	if f.Limit > 0 && f.Limit <= 1000 {
-		limit = f.Limit
-	}
-
-	offset := max(f.Offset, 0)
+	limit := f.Limit
+	offset := f.Offset
 
 	limitPos := argPos
 	offsetPos := argPos + 1
@@ -173,10 +169,6 @@ func (r *Repository) List(ctx context.Context, f SnippetFilter) ([]*Snippet, err
 		snippets = append(snippets, &s)
 	}
 
-	if len(snippets) == 0 {
-		return nil, ErrNotFound
-	}
-
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
@@ -209,11 +201,11 @@ func (r *Repository) Update(ctx context.Context, s *Snippet) error {
 	return nil
 }
 
-func (r *Repository) Delete(ctx context.Context, id string, creatorID string) error {
+func (r *Repository) Delete(ctx context.Context, id string) error {
 	ctx, cancel := r.base.WithTimeout(ctx)
 	defer cancel()
 
-	tag, err := r.base.Q().Exec(ctx, sqlSnippetDelete, id, creatorID)
+	tag, err := r.base.Q().Exec(ctx, sqlSnippetDelete, id)
 
 	if err != nil {
 		return err

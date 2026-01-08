@@ -15,7 +15,7 @@ type storeStub struct {
 	getFn    func(ctx context.Context, id string) (*Snippet, error)
 	listFn   func(ctx context.Context, f SnippetFilter) ([]*Snippet, error)
 	updateFn func(ctx context.Context, s *Snippet) error
-	deleteFn func(ctx context.Context, id string, creatorID string) error
+	deleteFn func(ctx context.Context, id string) error
 }
 
 func (s *storeStub) Create(ctx context.Context, sn *Snippet) error {
@@ -25,7 +25,7 @@ func (s *storeStub) Create(ctx context.Context, sn *Snippet) error {
 	return nil
 }
 
-func (s *storeStub) GetByIDPublicOnly(ctx context.Context, id string) (*Snippet, error) {
+func (s *storeStub) GetByID(ctx context.Context, id string) (*Snippet, error) {
 	if s.getFn != nil {
 		return s.getFn(ctx, id)
 	}
@@ -46,9 +46,9 @@ func (s *storeStub) Update(ctx context.Context, sn *Snippet) error {
 	return nil
 }
 
-func (s *storeStub) Delete(ctx context.Context, id string, creatorID string) error {
+func (s *storeStub) Delete(ctx context.Context, id string) error {
 	if s.deleteFn != nil {
-		return s.deleteFn(ctx, id, creatorID)
+		return s.deleteFn(ctx, id)
 	}
 	return nil
 }
