@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"errors"
+	"regexp"
 	"reflect"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 )
 
 var validate *validator.Validate
+var simpleEmailRe = regexp.MustCompile(`^[a-zA-Z0-9.!#$%&'*+/=?^_` + "`" + `{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$`)
 
 func init() {
 	validate = validator.New()
@@ -32,7 +34,10 @@ func init() {
 		if len(email) > 254 {
 			return false
 		}
-		return validate.Var(email, "email") == nil
+		if validate.Var(email, "email") == nil {
+			return true
+		}
+		return simpleEmailRe.MatchString(email)
 	})
 	validate.RegisterValidation("maxlines", func(fl validator.FieldLevel) bool {
 		field := fl.Field()
@@ -44,6 +49,7 @@ func init() {
 		return lines <= maxLinesFromParam(fl.Param())
 	})
 }
+
 
 type UserCreateDTO struct {
 	Email    string `json:"email" validate:"required,notblank,trimmedemail"`
