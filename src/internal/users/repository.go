@@ -2,12 +2,10 @@ package users
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"strings"
 
 	"github.com/PabloPavan/sniply_api/internal/db"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -64,7 +62,7 @@ func (r *Repository) GetByEmail(ctx context.Context, email string) (User, error)
 	err := r.base.Q().QueryRow(ctx, sqlUserGetByEmail, email).Scan(
 		&u.ID, &u.Email, &u.PasswordHash, &u.Role, &u.CreatedAt,
 	)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if IsNotFound(err) {
 		return User{}, ErrNotFound
 	}
 
@@ -87,7 +85,7 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*User, error) {
 		&u.CreatedAt,
 	)
 
-	if errors.Is(err, pgx.ErrNoRows) {
+	if IsNotFound(err) {
 		return nil, ErrNotFound
 	}
 

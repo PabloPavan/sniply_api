@@ -2,12 +2,10 @@ package snippets
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/PabloPavan/sniply_api/internal/db"
-	"github.com/jackc/pgx/v5"
 )
 
 type Repository struct {
@@ -57,7 +55,7 @@ func (r *Repository) Create(ctx context.Context, s *Snippet) error {
 		s.CreatorID,
 	).Scan(&s.CreatedAt, &s.UpdatedAt)
 
-	if errors.Is(err, pgx.ErrNoRows) {
+	if IsNotFound(err) {
 		return ErrNotFound
 	}
 
@@ -87,7 +85,7 @@ func (r *Repository) GetByIDPublicOnly(ctx context.Context, id string) (*Snippet
 		&s.UpdatedAt,
 	)
 
-	if errors.Is(err, pgx.ErrNoRows) {
+	if IsNotFound(err) {
 		return nil, ErrNotFound
 	}
 
@@ -200,7 +198,7 @@ func (r *Repository) Update(ctx context.Context, s *Snippet) error {
 		s.ID,
 	).Scan(&s.UpdatedAt)
 
-	if errors.Is(err, pgx.ErrNoRows) {
+	if IsNotFound(err) {
 		return ErrNotFound
 	}
 
