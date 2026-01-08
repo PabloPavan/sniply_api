@@ -25,9 +25,9 @@ type Service struct {
 }
 
 type UpdateUserInput struct {
-	Email    *string `json:"email,omitempty"`
-	Password *string `json:"password,omitempty"`
-	Role     *string `json:"role,omitempty"`
+	Email    *string
+	Password *string
+	Role     *string
 }
 
 func (s *Service) Create(ctx context.Context, req CreateUserRequest) (*User, error) {
@@ -37,13 +37,6 @@ func (s *Service) Create(ctx context.Context, req CreateUserRequest) (*User, err
 
 	email := strings.TrimSpace(strings.ToLower(req.Email))
 	password := strings.TrimSpace(req.Password)
-
-	if email == "" || password == "" {
-		return nil, apperrors.New(apperrors.KindInvalidInput, "email and password are required")
-	}
-	if !strings.Contains(email, "@") {
-		return nil, apperrors.New(apperrors.KindInvalidInput, "invalid email")
-	}
 
 	hasher := s.PasswordHasher
 	if hasher == nil {
@@ -185,20 +178,11 @@ func (s *Service) updateWithTarget(ctx context.Context, requesterID string, isAd
 
 	if input.Email != nil {
 		email := strings.TrimSpace(strings.ToLower(*input.Email))
-		if email == "" {
-			return apperrors.New(apperrors.KindInvalidInput, "invalid email")
-		}
-		if !strings.Contains(email, "@") {
-			return apperrors.New(apperrors.KindInvalidInput, "invalid email")
-		}
 		req.Email = email
 	}
 
 	if input.Password != nil {
 		pass := strings.TrimSpace(*input.Password)
-		if pass == "" {
-			return apperrors.New(apperrors.KindInvalidInput, "invalid password")
-		}
 		hasher := s.PasswordHasher
 		if hasher == nil {
 			hasher = internal.DefaultPasswordHasher

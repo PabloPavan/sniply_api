@@ -76,7 +76,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/apikeys.CreateInput"
+                            "$ref": "#/definitions/httpapi.APIKeyCreateDTO"
                         }
                     },
                     {
@@ -386,7 +386,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/snippets.CreateSnippetRequest"
+                            "$ref": "#/definitions/httpapi.SnippetCreateDTO"
                         }
                     },
                     {
@@ -513,7 +513,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/snippets.CreateSnippetRequest"
+                            "$ref": "#/definitions/httpapi.SnippetCreateDTO"
                         }
                     },
                     {
@@ -697,7 +697,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/users.CreateUserRequest"
+                            "$ref": "#/definitions/httpapi.UserCreateDTO"
                         }
                     }
                 ],
@@ -796,7 +796,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/users.UpdateUserInput"
+                            "$ref": "#/definitions/httpapi.UserUpdateDTO"
                         }
                     },
                     {
@@ -913,7 +913,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/users.UpdateUserInput"
+                            "$ref": "#/definitions/httpapi.UserUpdateDTO"
                         }
                     },
                     {
@@ -1020,14 +1020,19 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "apikeys.CreateInput": {
+        "httpapi.APIKeyCreateDTO": {
             "type": "object",
             "properties": {
                 "name": {
                     "type": "string"
                 },
                 "scope": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                        "read",
+                        "write",
+                        "read_write"
+                    ]
                 }
             }
         },
@@ -1100,26 +1105,73 @@ const docTemplate = `{
                 }
             }
         },
-        "snippets.CreateSnippetRequest": {
+        "httpapi.SnippetCreateDTO": {
             "type": "object",
+            "required": [
+                "content",
+                "name"
+            ],
             "properties": {
                 "content": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 250000
                 },
                 "language": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 32
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 200
                 },
                 "tags": {
                     "type": "array",
+                    "maxItems": 20,
                     "items": {
                         "type": "string"
                     }
                 },
                 "visibility": {
-                    "$ref": "#/definitions/snippets.Visibility"
+                    "enum": [
+                        "public",
+                        "private"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/snippets.Visibility"
+                        }
+                    ]
+                }
+            }
+        },
+        "httpapi.UserCreateDTO": {
+            "type": "object",
+            "required": [
+                "email",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string",
+                    "maxLength": 72
+                }
+            }
+        },
+        "httpapi.UserUpdateDTO": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string",
+                    "maxLength": 72
+                },
+                "role": {
+                    "type": "string"
                 }
             }
         },
@@ -1168,31 +1220,6 @@ const docTemplate = `{
                 "VisibilityPublic",
                 "VisibilityPrivate"
             ]
-        },
-        "users.CreateUserRequest": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "password": {
-                    "type": "string"
-                }
-            }
-        },
-        "users.UpdateUserInput": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "password": {
-                    "type": "string"
-                },
-                "role": {
-                    "type": "string"
-                }
-            }
         },
         "users.UserResponse": {
             "type": "object",

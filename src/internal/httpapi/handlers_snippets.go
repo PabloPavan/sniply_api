@@ -31,7 +31,7 @@ type SnippetsHandler struct {
 // @Produce json
 // @Security SessionAuth
 // @Security ApiKeyAuth
-// @Param body body snippets.CreateSnippetRequest true "snippet"
+// @Param body body SnippetCreateDTO true "snippet"
 // @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 201 {object} snippets.Snippet
 // @Failure 400 {string} string
@@ -40,13 +40,23 @@ type SnippetsHandler struct {
 // @Failure 500 {string} string
 // @Router /snippets [post]
 func (h *SnippetsHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req snippets.CreateSnippetRequest
+	var req SnippetCreateDTO
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
+	if err := req.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	snippet, err := h.Service.Create(r.Context(), req)
+	snippet, err := h.Service.Create(r.Context(), snippets.CreateSnippetRequest{
+		Name:       req.Name,
+		Content:    req.Content,
+		Language:   req.Language,
+		Tags:       req.Tags,
+		Visibility: req.Visibility,
+	})
 	if err != nil {
 		writeAppError(w, err)
 		return
@@ -149,7 +159,7 @@ func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Security SessionAuth
 // @Security ApiKeyAuth
 // @Param id path string true "snippet id"
-// @Param body body snippets.CreateSnippetRequest true "snippet"
+// @Param body body SnippetCreateDTO true "snippet"
 // @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 204
 // @Failure 400 {string} string
@@ -160,13 +170,23 @@ func (h *SnippetsHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *SnippetsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(chi.URLParam(r, "id"))
 
-	var req snippets.CreateSnippetRequest
+	var req SnippetCreateDTO
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
+	if err := req.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	snippet, err := h.Service.Update(r.Context(), id, req)
+	snippet, err := h.Service.Update(r.Context(), id, snippets.CreateSnippetRequest{
+		Name:       req.Name,
+		Content:    req.Content,
+		Language:   req.Language,
+		Tags:       req.Tags,
+		Visibility: req.Visibility,
+	})
 	if err != nil {
 		writeAppError(w, err)
 		return

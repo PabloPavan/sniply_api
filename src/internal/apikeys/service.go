@@ -25,8 +25,8 @@ type Service struct {
 }
 
 type CreateInput struct {
-	Name  string `json:"name"`
-	Scope string `json:"scope"`
+	Name  string
+	Scope string
 }
 
 func (s *Service) Create(ctx context.Context, input CreateInput) (*Key, string, error) {

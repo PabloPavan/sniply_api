@@ -11,15 +11,15 @@ type User struct {
 }
 
 type CreateUserRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string
+	Password string
 }
 
 type UpdateUserRequest struct {
-	ID           string   `json:"id"`
-	Email        string   `json:"email,omitempty"`
-	PasswordHash string   `json:"password,omitempty"`
-	Role         UserRole `json:"role,omitempty"` // só admin pode seta
+	ID           string
+	Email        string
+	PasswordHash string
+	Role         UserRole // só admin pode seta
 }
 
 type UserResponse struct {

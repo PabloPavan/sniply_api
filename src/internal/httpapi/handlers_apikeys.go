@@ -45,7 +45,7 @@ type APIKeyResponse struct {
 // @Accept json
 // @Produce json
 // @Security SessionAuth
-// @Param body body apikeys.CreateInput true "api key"
+// @Param body body APIKeyCreateDTO true "api key"
 // @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 201 {object} APIKeyCreateResponse
 // @Failure 400 {string} string
@@ -53,13 +53,20 @@ type APIKeyResponse struct {
 // @Failure 500 {string} string
 // @Router /auth/api-keys [post]
 func (h *APIKeysHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req apikeys.CreateInput
+	var req APIKeyCreateDTO
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
+	if err := req.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	key, token, err := h.Service.Create(r.Context(), req)
+	key, token, err := h.Service.Create(r.Context(), apikeys.CreateInput{
+		Name:  req.Name,
+		Scope: req.Scope,
+	})
 	if err != nil {
 		writeAppError(w, err)
 		return

@@ -106,7 +106,7 @@ func newClient(t *testing.T) *http.Client {
 func createUser(t *testing.T, client *http.Client, baseURL, email, password string) users.UserResponse {
 	t.Helper()
 
-	payload := users.CreateUserRequest{Email: email, Password: password}
+	payload := httpapi.UserCreateDTO{Email: email, Password: password}
 	res := doJSON(t, client, http.MethodPost, baseURL+"/v1/users", payload)
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
@@ -470,7 +470,7 @@ func TestSnippetsEndpoints(t *testing.T) {
 		t.Fatalf("decode me: %v", err)
 	}
 
-	createReq := snippets.CreateSnippetRequest{
+	createReq := httpapi.SnippetCreateDTO{
 		Name:       "Example",
 		Content:    "print('hi')",
 		Language:   "python",
@@ -513,7 +513,7 @@ func TestSnippetsEndpoints(t *testing.T) {
 		t.Fatal("expected snippets list")
 	}
 
-	updateReq := snippets.CreateSnippetRequest{
+	updateReq := httpapi.SnippetCreateDTO{
 		Name:       "Updated",
 		Content:    "print('updated')",
 		Language:   "python",
@@ -536,7 +536,7 @@ func TestSnippetsEndpoints(t *testing.T) {
 		t.Fatalf("snippet name not updated: %s", updated.Name)
 	}
 
-	privateReq := snippets.CreateSnippetRequest{
+	privateReq := httpapi.SnippetCreateDTO{
 		Name:       "Private",
 		Content:    "secret",
 		Language:   "txt",
@@ -607,7 +607,7 @@ func TestAPIKeysAuth(t *testing.T) {
 		t.Fatalf("api key read list status: %d", res.StatusCode)
 	}
 
-	createReq := snippets.CreateSnippetRequest{
+	createReq := httpapi.SnippetCreateDTO{
 		Name:       "Denied",
 		Content:    "x",
 		Language:   "txt",
@@ -622,7 +622,7 @@ func TestAPIKeysAuth(t *testing.T) {
 	}
 
 	writeKey := createAPIKey(t, client, env.baseURL, csrf, "rw-key", "read_write")
-	createReq = snippets.CreateSnippetRequest{
+	createReq = httpapi.SnippetCreateDTO{
 		Name:       "Allowed",
 		Content:    "print('ok')",
 		Language:   "python",

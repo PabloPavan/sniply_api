@@ -24,11 +24,11 @@ type Snippet struct {
 }
 
 type CreateSnippetRequest struct {
-	Name       string     `json:"name"`
-	Content    string     `json:"content"`
-	Language   string     `json:"language"`
-	Tags       []string   `json:"tags"`
-	Visibility Visibility `json:"visibility"`
+	Name       string
+	Content    string
+	Language   string
+	Tags       []string
+	Visibility Visibility
 }
 
 type SnippetFilter struct {

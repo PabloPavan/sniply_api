@@ -31,20 +31,27 @@ type UsersHandler struct {
 // @Tags users
 // @Accept json
 // @Produce json
-// @Param body body users.CreateUserRequest true "user"
+// @Param body body UserCreateDTO true "user"
 // @Success 201 {object} users.UserResponse
 // @Failure 400 {string} string
 // @Failure 409 {string} string
 // @Failure 500 {string} string
 // @Router /users [post]
 func (h *UsersHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req users.CreateUserRequest
+	var req UserCreateDTO
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
+	if err := req.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	u, err := h.Service.Create(r.Context(), req)
+	u, err := h.Service.Create(r.Context(), users.CreateUserRequest{
+		Email:    req.Email,
+		Password: req.Password,
+	})
 	if err != nil {
 		writeAppError(w, err)
 		return
@@ -158,7 +165,7 @@ func (h *UsersHandler) Me(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Security SessionAuth
 // @Security ApiKeyAuth
-// @Param body body users.UpdateUserInput true "user"
+// @Param body body UserUpdateDTO true "user"
 // @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 204
 // @Failure 400 {string} string
@@ -167,13 +174,21 @@ func (h *UsersHandler) Me(w http.ResponseWriter, r *http.Request) {
 // @Failure 500 {string} string
 // @Router /users/me [put]
 func (h *UsersHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
-	var req users.UpdateUserInput
+	var req UserUpdateDTO
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
+	if err := req.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	if err := h.Service.UpdateSelf(r.Context(), req); err != nil {
+	if err := h.Service.UpdateSelf(r.Context(), users.UpdateUserInput{
+		Email:    req.Email,
+		Password: req.Password,
+		Role:     req.Role,
+	}); err != nil {
 		writeAppError(w, err)
 		return
 	}
@@ -208,7 +223,7 @@ func (h *UsersHandler) DeleteMe(w http.ResponseWriter, r *http.Request) {
 // @Security SessionAuth
 // @Security ApiKeyAuth
 // @Param id path string true "user id"
-// @Param body body users.UpdateUserInput true "user"
+// @Param body body UserUpdateDTO true "user"
 // @Param X-CSRF-Token header string false "CSRF token (required for SessionAuth)"
 // @Success 204
 // @Failure 400 {string} string
@@ -219,13 +234,21 @@ func (h *UsersHandler) DeleteMe(w http.ResponseWriter, r *http.Request) {
 func (h *UsersHandler) Update(w http.ResponseWriter, r *http.Request) {
 	targetID := strings.TrimSpace(chi.URLParam(r, "id"))
 
-	var req users.UpdateUserInput
+	var req UserUpdateDTO
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
+	if err := req.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	if err := h.Service.UpdateByID(r.Context(), targetID, req); err != nil {
+	if err := h.Service.UpdateByID(r.Context(), targetID, users.UpdateUserInput{
+		Email:    req.Email,
+		Password: req.Password,
+		Role:     req.Role,
+	}); err != nil {
 		writeAppError(w, err)
 		return
 	}
